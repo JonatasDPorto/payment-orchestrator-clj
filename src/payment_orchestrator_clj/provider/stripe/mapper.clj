@@ -7,15 +7,30 @@
   (str "payment-orchestrator-clj:" operation ":" operation-id))
 
 (defn create-request [command payment-method-id]
-  {:method :post
-   :path "/v1/payment_intents"
-   :idempotency-key (operation-idempotency-key (:operation/id command) "create-payment")
-   :form {"amount" (str (:amount command))
-          "currency" (string/lower-case (name (:currency command)))
-          "confirm" "true"
-          "payment_method" payment-method-id
-          "payment_method_types[]" "card"
-          "metadata[payment_id]" (str (:payment/id command))}})
+  (let [common {"amount" (str (:amount command))
+                "currency" (string/lower-case (name (:currency command)))
+                "metadata[payment_id]" (str (:payment/id command))}
+        form (case (or (:method command) :payment.method/card)
+               (:payment.method/card :card) (assoc common "confirm" "true"
+                                                           "payment_method" payment-method-id
+                                                           "payment_method_types[]" "card")
+               (:payment.method/pix :pix) (let [{:keys [tax-id email name]} (:pix command)]
+                                             (when-not (and (string? tax-id) (string? email) (string? name))
+                                               (throw (port/provider-error :provider.error/invalid-request
+                                                                           {:provider :stripe :retryable? false :outcome-known? true})))
+                                             (assoc common
+                                                    "confirm" "true"
+                                                    "payment_method_types[]" "pix"
+                                                    "payment_method_data[type]" "pix"
+                                                    "payment_method_data[billing_details][name]" name
+                                                    "payment_method_data[billing_details][email]" email
+                                                    "payment_method_data[billing_details][tax_id]" tax-id))
+               (throw (port/provider-error :provider.error/invalid-request
+                                           {:provider :stripe :retryable? false :outcome-known? true})))]
+    {:method :post
+     :path "/v1/payment_intents"
+     :idempotency-key (operation-idempotency-key (:operation/id command) "create-payment")
+     :form form}))
 
 (defn fetch-request [reference]
   {:method :get :path (str "/v1/payment_intents/" reference)})
@@ -44,8 +59,23 @@
     (throw (port/provider-error :provider.error/unexpected-response
                                 {:provider :stripe :retryable? false :outcome-known? true}))))
 
-(defn payment-intent->provider-result [{:keys [body request-id]}]
-  (let [status (:status body)]
+(defn- pix-action [body]
+  (let [qr-code (get-in body [:next_action :pix_display_qr_code])]
+    (when-not (and (string? (:data qr-code)) (number? (:expires_at qr-code)))
+      (throw (port/provider-error :provider.error/unexpected-response
+                                  {:provider :stripe :retryable? false :outcome-known? true})))
+    (cond-> {:action/type :pix/qr-code
+             :action/payload (:data qr-code)
+             :action/expires-at (java.time.Instant/ofEpochSecond (:expires_at qr-code))}
+      (or (:image_url_svg qr-code) (:image_url_png qr-code))
+      (assoc :action/qr-code-url (or (:image_url_svg qr-code) (:image_url_png qr-code)))
+      (:hosted_instructions_url qr-code)
+      (assoc :action/hosted-instructions-url (:hosted_instructions_url qr-code)))))
+
+(defn payment-intent->provider-result
+  ([response] (payment-intent->provider-result response nil))
+  ([{:keys [body request-id]} method]
+   (let [status (:status body)]
     (cond-> {:provider :stripe
              :provider-payment/reference (:id body)
              :provider-payment/status (canonical-status status)
@@ -53,8 +83,11 @@
              :provider-request-id request-id}
       (= "requires_action" status)
       (assoc :provider-payment/action
-             {:action/type :client-secret
-              :action/value (:client_secret body)}))))
+             (if (= "pix_display_qr_code" (get-in body [:next_action :type]))
+               (pix-action body)
+               {:action/type :client-secret
+                :action/value (:client_secret body)}))
+      ))))
 
 (defn refund->provider-result [{:keys [body request-id]}]
   {:provider :stripe

@@ -51,3 +51,18 @@
                       :where [?payment :payment/id ?payment-id]]
                     (d/db connection)
                     payment-id)))))))
+
+(deftest pix-action-round-trips-as-a-canonical-component
+  (support/with-test-database
+    (fn [connection]
+      (let [payments (datomic-repository/new-repository connection)
+            pix-payment (assoc test-payment
+                               :payment/method :payment.method/pix
+                               :payment/action {:payment-action/type :pix/qr-code
+                                                :payment-action/payload "000201PIXTESTPAYLOAD6304ABCD"
+                                                :payment-action/qr-code-url "https://example.test/pix.png"
+                                                :payment-action/hosted-instructions-url "https://example.test/pix"
+                                                :payment-action/expires-at (Instant/parse "2030-01-01T00:00:00Z")})]
+        (repository/save-payment! payments pix-payment)
+        (is (= (assoc pix-payment :payment/events [] :payment/merchant-id "default")
+               (repository/find-payment payments payment-id)))))))

@@ -18,6 +18,7 @@
                          {:provider :stripe
                           :provider-code (or (get-in body [:error :code])
                                              (get-in body [:error :type]))
+                          :provider-http-status status
                           :provider-request-id request-id
                           :retryable? (contains? #{:provider.error/rate-limited :provider.error/unavailable} category)
                           :outcome-known? outcome-known?})))

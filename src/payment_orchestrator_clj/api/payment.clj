@@ -16,7 +16,11 @@
    [:customerId [:and string? [:fn (complement clojure.string/blank?)]]]
    [:amount [:and int? [:fn pos?]]]
    [:currency [:enum "BRL"]]
-   [:method [:enum "card"]]])
+   [:method [:enum "card" "pix"]]
+   [:pix {:optional true} [:map {:closed true}
+                           [:taxId [:and string? [:fn (complement clojure.string/blank?)]]]
+                           [:email [:and string? [:fn (complement clojure.string/blank?)]]]
+                           [:name [:and string? [:fn (complement clojure.string/blank?)]]]]]])
 
 (defn- json-response [status body]
   {:status status
@@ -37,13 +41,45 @@
    :merchant-id (merchant-id body)
    :amount (:amount request)
    :currency (keyword (:currency request))
-   :method (keyword "payment.method" (:method request))})
+   :method (keyword "payment.method" (:method request))
+   :pix (when-let [pix (:pix request)]
+          {:tax-id (:taxId pix) :email (:email pix) :name (:name pix)})})
 
-(defn payment-response [payment]
-  {:id (str (:payment/id payment))
-   :status (name (:payment/status payment))
-   :amount (:payment/amount payment)
-   :currency (name (:payment/currency payment))})
+(defn- valid-pix-request? [body]
+  (or (not= "pix" (:method body))
+      (m/validate [:map {:closed true}
+                   [:taxId [:and string? [:fn (complement clojure.string/blank?)]]]
+                   [:email [:and string? [:fn (complement clojure.string/blank?)]]]
+                   [:name [:and string? [:fn (complement clojure.string/blank?)]]]]
+                  (:pix body))))
+
+(defn- action-response [action]
+  (case (:action/type action)
+    :pix/qr-code (cond-> {:type "pix_qr_code"
+                          :payload (:action/payload action)
+                          :expiresAt (str (:action/expires-at action))}
+                   (:action/qr-code-url action) (assoc :qrCodeUrl (:action/qr-code-url action))
+                   (:action/hosted-instructions-url action) (assoc :hostedInstructionsUrl (:action/hosted-instructions-url action)))
+    :client-secret {:type "client_secret" :value (:action/value action)}
+    nil))
+
+(defn payment-response
+  ([payment] (payment-response payment nil))
+  ([payment provider-result]
+   (let [persisted-action (:payment/action payment)
+         action (or (when (= :pix/qr-code (:payment-action/type persisted-action))
+                      {:action/type :pix/qr-code
+                       :action/payload (:payment-action/payload persisted-action)
+                       :action/qr-code-url (:payment-action/qr-code-url persisted-action)
+                       :action/hosted-instructions-url (:payment-action/hosted-instructions-url persisted-action)
+                       :action/expires-at (:payment-action/expires-at persisted-action)})
+                    (when (= :payment.method/pix (:payment/method payment))
+                      (:provider-payment/action provider-result)))]
+     (cond-> {:id (str (:payment/id payment))
+              :status (name (:payment/status payment))
+              :amount (:payment/amount payment)
+              :currency (name (:payment/currency payment))}
+       action (assoc :action (action-response action))))))
 
 (defn- request-context [request]
   (let [request-id (or (get-in request [:headers "x-request-id"])
@@ -63,16 +99,16 @@
       (if (= ::invalid-json body)
         (error-response 400 "invalid_json" "Request body must be valid JSON" {})
         (try
-          (if-not (m/validate create-payment-request body)
+          (if-not (and (m/validate create-payment-request body) (valid-pix-request? body))
             (error-response 400 "invalid_payment" "Payment request is invalid"
                             {:validation (me/humanize (m/explain create-payment-request body))})
           (if-let [key (idempotency-key request)]
-            (let [{:keys [outcome payment]} (service/create-payment-idempotently!
+            (let [{:keys [outcome payment provider-result]} (service/create-payment-idempotently!
                                               dependencies (request->command body request) key (request-context request))]
               (case outcome
                 :conflict (error-response 409 "idempotency_conflict"
                                           "Idempotency-Key was already used with a different request" {})
-                (assoc (json-response (if (= :created outcome) 201 200) (payment-response payment))
+                (assoc (json-response (if (= :created outcome) 201 200) (payment-response payment provider-result))
                        :headers {"content-type" "application/json; charset=utf-8"
                                  "location" (str "/v1/payments/" (:payment/id payment))})))
             (error-response 400 "missing_idempotency_key" "Idempotency-Key header is required" {})))

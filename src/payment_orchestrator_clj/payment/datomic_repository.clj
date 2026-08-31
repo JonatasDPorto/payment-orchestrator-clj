@@ -7,7 +7,9 @@
 
 (def payment-pull-pattern
   '[:payment/id :payment/merchant-id :payment/customer-id :payment/amount :payment/currency
-    :payment/method :payment/status :payment/created-at])
+    :payment/method :payment/status :payment/created-at
+    {:payment/action [:payment-action/type :payment-action/payload :payment-action/qr-code-url
+                      :payment-action/hosted-instructions-url :payment-action/expires-at]}])
 
 (def idempotency-pull-pattern
   '[:idempotency/request-hash
@@ -26,20 +28,31 @@
 
 (defn domain->tx [payment]
   (let [created-at (require-created-at! payment)]
-    {:payment/id (:payment/id payment)
-     :payment/merchant-id (or (:payment/merchant-id payment) "default")
-     :payment/customer-id (:payment/customer-id payment)
-     :payment/amount (:payment/amount payment)
-     :payment/currency (:payment/currency payment)
-     :payment/method (:payment/method payment)
-     :payment/status (:payment/status payment)
-     :payment/created-at (Date/from created-at)}))
+    (cond-> {:payment/id (:payment/id payment)
+             :payment/merchant-id (or (:payment/merchant-id payment) "default")
+             :payment/customer-id (:payment/customer-id payment)
+             :payment/amount (:payment/amount payment)
+             :payment/currency (:payment/currency payment)
+             :payment/method (:payment/method payment)
+             :payment/status (:payment/status payment)
+             :payment/created-at (Date/from created-at)}
+      (:payment/action payment)
+      (assoc :payment/action (cond-> (select-keys (:payment/action payment)
+                                                [:payment-action/type :payment-action/payload
+                                                 :payment-action/qr-code-url :payment-action/hosted-instructions-url])
+                              (:payment-action/expires-at (:payment/action payment))
+                              (assoc :payment-action/expires-at
+                                     (Date/from (:payment-action/expires-at (:payment/action payment)))))))))
 
 (defn datomic->domain [entity]
   (when entity
-    (-> entity
-        (update :payment/created-at #(.toInstant ^Date %))
-        (assoc :payment/events []))))
+    (let [action (:payment/action entity)]
+      (cond-> (-> entity
+                  (update :payment/created-at #(.toInstant ^Date %))
+                  (update-in [:payment/action :payment-action/expires-at]
+                             #(when % (.toInstant ^Date %)))
+                  (assoc :payment/events []))
+        (nil? (:payment-action/type action)) (dissoc :payment/action)))))
 
 (defn- transaction-metadata [{:keys [request-id correlation-id actor source reason event-type]}]
   (cond-> {:db/id "datomic.tx"}

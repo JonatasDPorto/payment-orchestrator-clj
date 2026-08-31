@@ -24,27 +24,36 @@
     payment))
 
 (defn- apply-provider-result [payment provider-result occurred-at]
-  (case (:provider-payment/status provider-result)
-    :provider.status/processing (to-processing payment occurred-at)
-    :provider.status/requires-action (domain/transition (to-processing payment occurred-at)
-                                                        :payment.status/requires-action occurred-at)
-    :provider.status/succeeded (domain/transition (to-processing payment occurred-at)
-                                                  :payment.status/paid occurred-at)
-    :provider.status/failed (domain/transition (to-processing payment occurred-at)
-                                               :payment.status/failed occurred-at)
-    :provider.status/cancelled (domain/transition (to-processing payment occurred-at)
-                                                  :payment.status/cancelled occurred-at)
-    (throw (provider/provider-error :provider.error/unexpected-response
-                                    {:provider (:provider provider-result)
-                                     :retryable? false :outcome-known? true}))))
+  (let [updated (case (:provider-payment/status provider-result)
+                  :provider.status/processing (to-processing payment occurred-at)
+                  :provider.status/requires-action (domain/transition (to-processing payment occurred-at)
+                                                                      :payment.status/requires-action occurred-at)
+                  :provider.status/succeeded (domain/transition (to-processing payment occurred-at)
+                                                                :payment.status/paid occurred-at)
+                  :provider.status/failed (domain/transition (to-processing payment occurred-at)
+                                                             :payment.status/failed occurred-at)
+                  :provider.status/cancelled (domain/transition (to-processing payment occurred-at)
+                                                                :payment.status/cancelled occurred-at)
+                  (throw (provider/provider-error :provider.error/unexpected-response
+                                                  {:provider (:provider provider-result)
+                                                   :retryable? false :outcome-known? true})))
+        action (:provider-payment/action provider-result)]
+    (if (= :pix/qr-code (:action/type action))
+      (assoc updated :payment/action {:payment-action/type (:action/type action)
+                                     :payment-action/payload (:action/payload action)
+                                     :payment-action/qr-code-url (:action/qr-code-url action)
+                                     :payment-action/hosted-instructions-url (:action/hosted-instructions-url action)
+                                     :payment-action/expires-at (:action/expires-at action)})
+      updated)))
 
-(defn- provider-command [payment idempotency-key]
+(defn- provider-command [payment idempotency-key command]
   {:operation/id (java.util.UUID/randomUUID)
    :payment/id (:payment/id payment)
    :amount (:payment/amount payment)
    :currency (:payment/currency payment)
    :method (:payment/method payment)
    :customer {:reference (:payment/customer-id payment)}
+   :pix (:pix command)
    :idempotency-key idempotency-key})
 
 (defn- operation [payment command now provider-id]
@@ -90,7 +99,7 @@
         local-result (repository/create-payment-idempotently! payments payment record transaction-context)]
     (if (not= :created (:outcome local-result))
       local-result
-      (let [operation-command (provider-command payment idempotency-key)]
+      (let [operation-command (provider-command payment idempotency-key command)]
         (when-let [registry (:metrics dependencies)] (metrics/inc! registry "payment_create_total"))
         (try
           (let [_ (when-let [operation-repository (:operations dependencies)]

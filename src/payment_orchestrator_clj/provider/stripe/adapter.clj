@@ -12,10 +12,11 @@
 
 (defrecord StripeGateway [client payment-method-id]
   port/PaymentGateway
-  (capabilities [_] #{:payment/create :payment/fetch :payment/refund :payment/cancel :method/card})
+  (capabilities [_] #{:payment/create :payment/fetch :payment/refund :payment/cancel :method/card :method/pix})
   (create-payment! [_ command]
     (mapper/payment-intent->provider-result
-     (client/request! client (mapper/create-request command payment-method-id))))
+     (client/request! client (mapper/create-request command payment-method-id))
+     (:method command)))
   (fetch-payment [_ reference]
     (mapper/payment-intent->provider-result
      (client/request! client (mapper/fetch-request reference))))

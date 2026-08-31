@@ -21,6 +21,10 @@
     (is (= [{:event/type :payment/created :event/payment-id payment-id :event/occurred-at occurred-at}]
            (:payment/events created)))))
 
+(deftest accepts-the-canonical-pix-payment-method
+  (is (= :payment.method/pix
+         (:payment/method (payment/new-payment (assoc valid-command :method :payment.method/pix))))))
+
 (deftest rejects-invalid-money
   (testing "zero amount" (is (= :payment.validation/amount-must-be-positive
                                 (:error/code (ex-data-for #(payment/new-payment (assoc valid-command :amount 0)))))))

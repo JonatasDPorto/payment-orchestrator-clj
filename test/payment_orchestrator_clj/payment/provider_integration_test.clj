@@ -3,6 +3,7 @@
             [datomic.client.api :as d]
             [payment-orchestrator-clj.datomic.test-support :as support]
             [payment-orchestrator-clj.payment.datomic-repository :as datomic-repository]
+            [payment-orchestrator-clj.payment.repository :as repository]
             [payment-orchestrator-clj.payment.service :as service]
             [payment-orchestrator-clj.provider.fake :as fake])
   (:import [java.time Instant]
@@ -67,3 +68,22 @@
               (d/q '[:find (count ?payment)
                      :where [?payment :payment/id]]
                    (d/db connection))))))))
+
+(deftest pix-provider-result-persists-only-the-canonical-action
+  (support/with-test-database
+   (fn [connection]
+     (let [payments (datomic-repository/new-repository connection)
+           dependencies {:payments payments
+                         :gateway (fake/new-gateway {:mode :always-success})
+                         :clock #(Instant/parse "2026-08-30T12:00:00Z")
+                         :id-generator #(UUID/randomUUID)}
+           result (service/create-payment-idempotently!
+                   dependencies {:customer-id "customer-123" :amount 12990 :currency :BRL
+                                 :method :payment.method/pix}
+                   "pix-provider-key" {:source :source/test})
+           payment-id (get-in result [:payment :payment/id])
+           stored (repository/find-payment payments payment-id)]
+       (is (= :payment.status/requires-action (:payment/status stored)))
+       (is (= :pix/qr-code (get-in stored [:payment/action :payment-action/type])))
+       (is (= "2030-01-01T00:00:00Z"
+              (str (get-in stored [:payment/action :payment-action/expires-at]))))))))

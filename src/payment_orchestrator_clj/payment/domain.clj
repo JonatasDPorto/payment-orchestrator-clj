@@ -2,7 +2,7 @@
   "Pure canonical payment domain. Infrastructure belongs in later milestones.")
 
 (def supported-currencies #{:BRL})
-(def supported-payment-methods #{:payment.method/card})
+(def supported-payment-methods #{:payment.method/card :payment.method/pix})
 
 (def payment-statuses
   #{:payment.status/created :payment.status/processing :payment.status/requires-action

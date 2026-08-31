@@ -1,0 +1,9 @@
+{:status 200
+ :request-id "req_pix"
+ :body {:id "pi_pix"
+        :status "requires_action"
+        :next_action {:type "pix_display_qr_code"
+                      :pix_display_qr_code {:data "000201PIXTESTPAYLOAD6304ABCD"
+                                            :expires_at 1893456000
+                                            :image_url_png "https://stripe.example/pix.png"
+                                            :hosted_instructions_url "https://stripe.example/pix-instructions"}}}}

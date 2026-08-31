@@ -2,6 +2,7 @@
   (:require [clojure.data.json :as json]
             [clojure.test :refer [deftest is]]
             [payment-orchestrator-clj.api.routes :as routes]
+            [payment-orchestrator-clj.api.payment :as payment]
             [payment-orchestrator-clj.audit.repository :as audit]
             [payment-orchestrator-clj.provider.fake :as fake]
             [payment-orchestrator-clj.security :as security]
@@ -105,6 +106,24 @@
     (is (= 201 (:status response)))
     (is (= {:id "fc1b6fa6-1ed5-4211-a9fd-fb4e1dfefa0d" :status "processing" :amount 12990 :currency "BRL"}
            (response-body response)))))
+
+(deftest post-pix-payment-returns-a-canonical-qr-code-action
+  (let [response ((api) (request :post "/v1/payments"
+                                  "{\"customerId\":\"cust-123\",\"amount\":12990,\"currency\":\"BRL\",\"method\":\"pix\",\"pix\":{\"taxId\":\"000.000.000-00\",\"email\":\"pix@example.test\",\"name\":\"Pix Test\"}}"))]
+    (is (= 201 (:status response)))
+    (is (= "requires-action" (:status (response-body response))))
+    (is (= "pix_qr_code" (get-in (response-body response) [:action :type])))
+    (is (string? (get-in (response-body response) [:action :payload])))
+    (is (= "https://fake-provider.test/pix/qr-code.svg" (get-in (response-body response) [:action :qrCodeUrl])))
+    (is (= "https://fake-provider.test/pix/instructions" (get-in (response-body response) [:action :hostedInstructionsUrl])))
+    (is (= "2030-01-01T00:00:00Z" (get-in (response-body response) [:action :expiresAt])))))
+
+
+(deftest pix-requires-canonical-customer-details
+  (let [response ((api) (request :post "/v1/payments"
+                                  "{\"customerId\":\"cust-123\",\"amount\":12990,\"currency\":\"BRL\",\"method\":\"pix\"}"))]
+    (is (= 400 (:status response)))
+    (is (= "invalid_payment" (get-in (response-body response) [:error :code])))))
 
 (deftest get-existing-payment-returns-it
   (let [handler (api)

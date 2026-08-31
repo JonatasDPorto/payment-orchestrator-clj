@@ -30,6 +30,16 @@
           (swap! metrics update "webhook_duplicate_total" (fnil inc 0))))
       result)))
 
+(defn- transition-for-provider-event [payment target-status occurred-at]
+  (cond
+    (= target-status (:payment/status payment)) payment
+    (and (= :payment.status/requires-action (:payment/status payment))
+         (= :payment.status/paid target-status))
+    (-> payment
+        (domain/transition :payment.status/processing occurred-at)
+        (domain/transition :payment.status/paid occurred-at))
+    :else (domain/transition payment target-status occurred-at)))
+
 (defn- apply-event! [{:keys [provider-events payments clock id-generator ledger] :as dependencies} event]
   (let [event-id (:provider-event/id event)
         context (transaction-context event-id)
@@ -39,9 +49,7 @@
       :else (if-let [payment (events/payment-by-provider-reference provider-events
                                                                     (:provider-event/provider event)
                                                                     (:provider-event/provider-reference event))]
-              (let [updated (if (= target-status (:payment/status payment))
-                              payment
-                              (domain/transition payment target-status (clock)))]
+              (let [updated (transition-for-provider-event payment target-status (clock))]
                 (when-not (= payment updated)
                   (payments/save-payment! payments updated (assoc context :reason :reason/provider-status-update
                                                                    :event-type :event/payment-status-changed)))

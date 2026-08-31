@@ -215,13 +215,13 @@ Retorna apenas recursos implementados:
   :payment/fetch
   :payment/refund
   :payment/cancel
-  :method/card}
+  :method/card
+  :method/pix}
 ```
 
 Depois:
 
 ```text
-:method/pix
 :method/boleto
 :payment/partial-refund
 ```

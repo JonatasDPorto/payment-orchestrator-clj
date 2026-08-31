@@ -40,12 +40,12 @@
                   (or (:enabled fake-config) (= :fake default-provider))
                   (conj {:provider :fake
                          :gateway (fake/new-gateway fake-config)
-                         :capabilities #{:payment/create :payment/fetch :payment/refund :payment/cancel :method/card}
+                         :capabilities #{:payment/create :payment/fetch :payment/refund :payment/cancel :method/card :method/pix}
                          :cost (:cost fake-config 0)})
                   (or (:enabled stripe-config) (= :stripe default-provider))
                   (conj {:provider :stripe
                          :gateway (stripe/new-gateway (assoc stripe-config :environment (System/getenv)))
-                         :capabilities #{:payment/create :payment/fetch :payment/refund :payment/cancel :method/card}
+                         :capabilities #{:payment/create :payment/fetch :payment/refund :payment/cancel :method/card :method/pix}
                          :cost (:cost stripe-config 0)}))}))
 
 (defn application-dependencies [application-config]

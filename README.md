@@ -134,6 +134,22 @@ stripe trigger payment_intent.succeeded
 
 Provider selection remains internal to the API. The pure routing policy supports default, merchant, currency, payment-method, availability, and lowest-cost choices from the configured gateway catalog. The public request never exposes provider-specific fields. A route whose chosen provider is unavailable fails safely; it is never retried through another provider, preventing an ambiguous operation from creating a duplicate charge. See [MULTI-TENANCY.md](docs/MULTI-TENANCY.md) for the local configuration contract.
 
+## Pix (M19)
+
+Pix is the first canonical payment capability that returns a customer action. The local Fake Provider and Stripe Pix adapter return a provider-neutral copy-and-paste payload, QR-code URL when supplied, hosted instructions URL when supplied, and expiry, with no raw Stripe object persisted. The transient Pix customer details required to create the provider payment method are never persisted or logged.
+
+```powershell
+curl.exe -X POST http://localhost:8080/v1/payments -H "Authorization: Bearer <PAYMENT_ORCHESTRATOR_API_KEY>" -H "X-Merchant-Id: demo-merchant" -H "Content-Type: application/json" -H "Idempotency-Key: pix-demo-001" -d '{"customerId":"cust-demo","amount":12990,"currency":"BRL","method":"pix","pix":{"taxId":"000.000.000-00","email":"succeed_immediately@example.com","name":"Pix Test"}}'
+```
+
+To validate the real Stripe sandbox adapter with a `sk_test_...` key, run:
+
+```powershell
+docker run --rm --env-file .env -v "${PWD}:/workspace" -w /workspace clojure:temurin-21-tools-deps clojure -M:test-stripe-pix-sandbox
+```
+
+The sandbox suite sends `payment_method_types[]=pix`, `currency=brl`, `confirm=true`, and the documented test CPF. It never claims success when Stripe reports that the account is ineligible; inspect the returned request ID in that case.
+
 ## REPL de desenvolvimento
 
 ```bash
