@@ -1,6 +1,7 @@
 (ns payment-orchestrator-clj.integration-test-runner
   (:require [clojure.test :as test]
             [payment-orchestrator-clj.audit-integration-test]
+            [payment-orchestrator-clj.event-relay-integration-test]
             [payment-orchestrator-clj.payment.datomic-repository-integration-test]
             [payment-orchestrator-clj.payment.idempotency-integration-test]
             [payment-orchestrator-clj.payment.provider-integration-test]
@@ -10,6 +11,7 @@
 
 (def test-namespaces
   ['payment-orchestrator-clj.audit-integration-test
+   'payment-orchestrator-clj.event-relay-integration-test
    'payment-orchestrator-clj.payment.datomic-repository-integration-test
    'payment-orchestrator-clj.payment.idempotency-integration-test
    'payment-orchestrator-clj.payment.provider-integration-test

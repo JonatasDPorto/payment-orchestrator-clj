@@ -2,6 +2,7 @@
   (:require [clojure.test :as test]
             [payment-orchestrator-clj.api.payment-test]
             [payment-orchestrator-clj.config-test]
+            [payment-orchestrator-clj.event-consumer-test]
             [payment-orchestrator-clj.core-test]
             [payment-orchestrator-clj.logging-test]
             [payment-orchestrator-clj.ledger.domain-test]
@@ -15,6 +16,7 @@
 (def test-namespaces
   ['payment-orchestrator-clj.api.payment-test
    'payment-orchestrator-clj.config-test
+   'payment-orchestrator-clj.event-consumer-test
    'payment-orchestrator-clj.core-test
    'payment-orchestrator-clj.logging-test
    'payment-orchestrator-clj.ledger.domain-test
