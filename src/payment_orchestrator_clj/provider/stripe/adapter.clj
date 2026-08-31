@@ -12,7 +12,7 @@
 
 (defrecord StripeGateway [client payment-method-id]
   port/PaymentGateway
-  (capabilities [_] #{:payment/create :payment/fetch :payment/refund :payment/cancel :method/card :method/pix})
+  (capabilities [_] #{:payment/create :payment/fetch :payment/refund :payment/cancel :method/card :method/pix :method/boleto})
   (create-payment! [_ command]
     (mapper/payment-intent->provider-result
      (client/request! client (mapper/create-request command payment-method-id))
@@ -38,7 +38,8 @@
         secret-key (when-not injected? (required-env environment secret-key-env))
         payment-method-id (if injected?
                             "pm_test_stub"
-                            (required-env environment payment-method-env))]
+                            (or (get environment payment-method-env)
+                                (System/getenv payment-method-env)))]
     (->StripeGateway (client/new-client {:secret-key secret-key
                                          :timeout-ms timeout-ms
                                          :request-handler request-handler})

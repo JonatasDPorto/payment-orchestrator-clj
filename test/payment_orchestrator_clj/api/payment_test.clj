@@ -125,6 +125,22 @@
     (is (= 400 (:status response)))
     (is (= "invalid_payment" (get-in (response-body response) [:error :code])))))
 
+(deftest post-boleto-payment-returns-a-canonical-voucher-action
+  (let [response ((api) (request :post "/v1/payments"
+                                  "{\"customerId\":\"cust-123\",\"amount\":100,\"currency\":\"BRL\",\"method\":\"boleto\",\"boleto\":{\"taxId\":\"000.000.000-00\",\"email\":\"succeed_immediately@example.com\",\"name\":\"Boleto Test\",\"address\":{\"line1\":\"1234 Av Paulista\",\"city\":\"Sao Paulo\",\"state\":\"SP\",\"postalCode\":\"01310-000\",\"country\":\"BR\"}}}"))]
+    (is (= 201 (:status response)))
+    (is (= "requires-action" (:status (response-body response))))
+    (is (= "boleto_voucher" (get-in (response-body response) [:action :type])))
+    (is (string? (get-in (response-body response) [:action :number])))
+    (is (= "https://fake-provider.test/boleto/voucher" (get-in (response-body response) [:action :hostedVoucherUrl])))
+    (is (= "https://fake-provider.test/boleto/voucher.pdf" (get-in (response-body response) [:action :pdfUrl])))) )
+
+(deftest boleto-requires-canonical-customer-details
+  (let [response ((api) (request :post "/v1/payments"
+                                  "{\"customerId\":\"cust-123\",\"amount\":100,\"currency\":\"BRL\",\"method\":\"boleto\"}"))]
+    (is (= 400 (:status response)))
+    (is (= "invalid_payment" (get-in (response-body response) [:error :code])))))
+
 (deftest get-existing-payment-returns-it
   (let [handler (api)
         created (handler (request :post "/v1/payments"

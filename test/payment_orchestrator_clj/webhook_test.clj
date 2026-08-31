@@ -96,6 +96,24 @@
     (is (= :provider-event.status/processed
            (:provider-event/status (first (vals @(:events dependencies))))))))
 
+(deftest boleto-voucher-is-settled-only-by-the-asynchronous-provider-webhook
+  (let [payment-id (UUID/randomUUID)
+        boleto-payment (-> (domain/new-payment {:id payment-id :customer-id "customer-123" :amount 1000
+                                                 :currency :BRL :method :payment.method/boleto :occurred-at (fixed-clock)})
+                           (domain/transition :payment.status/processing (fixed-clock))
+                           (domain/transition :payment.status/requires-action (fixed-clock)))
+        payments (atom {payment-id boleto-payment})
+        events (atom {})
+        dependencies {:payments (->InMemoryPayments payments)
+                      :provider-events (->InMemoryEvents events (atom {"pi_boleto_webhook" payment-id}) payments)
+                      :clock fixed-clock :id-generator #(UUID/randomUUID)}
+        raw-body "{\"id\":\"evt_boleto_succeeded\",\"type\":\"payment_intent.succeeded\",\"data\":{\"object\":{\"id\":\"pi_boleto_webhook\"}}}"]
+    (is (= :accepted (:outcome (service/enqueue-stripe-event! dependencies raw-body))))
+    (is (= :payment.status/requires-action (:payment/status (get @payments payment-id))))
+    (service/process-pending! dependencies)
+    (is (= :payment.status/paid (:payment/status (get @payments payment-id))))
+    (is (= :provider-event.status/processed (:provider-event/status (first (vals @events)))))))
+
 (deftest unknown-event-is-persisted-and-ignored-safely
   (let [dependencies (dependencies (UUID/randomUUID))
         raw-body "{\"id\":\"evt_unknown\",\"type\":\"customer.created\",\"data\":{\"object\":{\"id\":\"cus_x\"}}}"

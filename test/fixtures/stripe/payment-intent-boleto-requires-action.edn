@@ -1,0 +1,9 @@
+{:status 200
+ :request-id "req_boleto"
+ :body {:id "pi_boleto"
+        :status "requires_action"
+        :next_action {:type "boleto_display_details"
+                      :boleto_display_details {:number "00190500954014481606906809350314337370000000100"
+                                               :hosted_voucher_url "https://stripe.example/boleto/voucher"
+                                               :pdf "https://stripe.example/boleto/voucher.pdf"
+                                               :expires_at 1893715199}}}}

@@ -66,3 +66,17 @@
         (repository/save-payment! payments pix-payment)
         (is (= (assoc pix-payment :payment/events [] :payment/merchant-id "default")
                (repository/find-payment payments payment-id)))))))
+
+(deftest boleto-action-round-trips-as-a-canonical-component
+  (support/with-test-database
+   (fn [connection]
+     (let [payments (datomic-repository/new-repository connection)
+           boleto-payment (assoc test-payment :payment/method :payment.method/boleto
+                                 :payment/action {:payment-action/type :boleto/voucher
+                                                  :payment-action/payload "00190500954014481606906809350314337370000000100"
+                                                  :payment-action/hosted-instructions-url "https://example.test/boleto"
+                                                  :payment-action/document-url "https://example.test/boleto.pdf"
+                                                  :payment-action/expires-at (Instant/parse "2030-01-03T23:59:59Z")})]
+       (repository/save-payment! payments boleto-payment)
+       (is (= (assoc boleto-payment :payment/events [] :payment/merchant-id "default")
+              (repository/find-payment payments payment-id)))))))

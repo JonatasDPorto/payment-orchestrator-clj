@@ -38,12 +38,15 @@
                                                   {:provider (:provider provider-result)
                                                    :retryable? false :outcome-known? true})))
         action (:provider-payment/action provider-result)]
-    (if (= :pix/qr-code (:action/type action))
-      (assoc updated :payment/action {:payment-action/type (:action/type action)
-                                     :payment-action/payload (:action/payload action)
-                                     :payment-action/qr-code-url (:action/qr-code-url action)
-                                     :payment-action/hosted-instructions-url (:action/hosted-instructions-url action)
-                                     :payment-action/expires-at (:action/expires-at action)})
+    (if (contains? #{:pix/qr-code :boleto/voucher} (:action/type action))
+      (assoc updated :payment/action
+             (into {} (remove (comp nil? val)
+                              {:payment-action/type (:action/type action)
+                               :payment-action/payload (:action/payload action)
+                               :payment-action/qr-code-url (:action/qr-code-url action)
+                               :payment-action/hosted-instructions-url (:action/hosted-instructions-url action)
+                               :payment-action/document-url (:action/document-url action)
+                               :payment-action/expires-at (:action/expires-at action)})) )
       updated)))
 
 (defn- provider-command [payment idempotency-key command]
@@ -54,6 +57,7 @@
    :method (:payment/method payment)
    :customer {:reference (:payment/customer-id payment)}
    :pix (:pix command)
+   :boleto (:boleto command)
    :idempotency-key idempotency-key})
 
 (defn- operation [payment command now provider-id]

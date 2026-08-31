@@ -8,7 +8,7 @@
 (def payment-pull-pattern
   '[:payment/id :payment/merchant-id :payment/customer-id :payment/amount :payment/currency
     :payment/method :payment/status :payment/created-at
-    {:payment/action [:payment-action/type :payment-action/payload :payment-action/qr-code-url
+    {:payment/action [:payment-action/type :payment-action/payload :payment-action/qr-code-url :payment-action/document-url
                       :payment-action/hosted-instructions-url :payment-action/expires-at]}])
 
 (def idempotency-pull-pattern
@@ -38,8 +38,9 @@
              :payment/created-at (Date/from created-at)}
       (:payment/action payment)
       (assoc :payment/action (cond-> (select-keys (:payment/action payment)
-                                                [:payment-action/type :payment-action/payload
-                                                 :payment-action/qr-code-url :payment-action/hosted-instructions-url])
+                                                 [:payment-action/type :payment-action/payload
+                                                 :payment-action/qr-code-url :payment-action/hosted-instructions-url
+                                                 :payment-action/document-url])
                               (:payment-action/expires-at (:payment/action payment))
                               (assoc :payment-action/expires-at
                                      (Date/from (:payment-action/expires-at (:payment/action payment)))))))))

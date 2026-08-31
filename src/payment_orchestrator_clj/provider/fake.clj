@@ -18,15 +18,26 @@
    :action/payload "00020126580014br.gov.bcb.pix0136payment-orchestrator-clj-test5204000053039865802BR5925Payment Orchestrator Test6009Sao Paulo62070503***6304ABCD"
    :action/expires-at (java.time.Instant/parse "2030-01-01T00:00:00Z")})
 
+(defn- boleto-action []
+  {:action/type :boleto/voucher
+   :action/payload "00190500954014481606906809350314337370000000100"
+   :action/hosted-instructions-url "https://fake-provider.test/boleto/voucher"
+   :action/document-url "https://fake-provider.test/boleto/voucher.pdf"
+   :action/expires-at (java.time.Instant/parse "2030-01-03T23:59:59Z")})
+
 (defrecord FakeGateway [mode payments latency-ms]
   port/PaymentGateway
-  (capabilities [_] #{:payment/create :payment/fetch :payment/refund :payment/cancel :method/card :method/pix})
+  (capabilities [_] #{:payment/create :payment/fetch :payment/refund :payment/cancel :method/card :method/pix :method/boleto})
   (create-payment! [_ command]
     (if (= :payment.method/pix (:method command))
       (let [payment (result command :provider.status/requires-action "PIX_QR_CODE" (pix-action))]
         (swap! payments assoc (:provider-payment/reference payment) payment)
         payment)
-      (case mode
+      (if (= :payment.method/boleto (:method command))
+        (let [payment (result command :provider.status/requires-action "BOLETO_VOUCHER" (boleto-action))]
+          (swap! payments assoc (:provider-payment/reference payment) payment)
+          payment)
+        (case mode
       :always-success (let [payment (result command :provider.status/processing "PROCESSING")]
                         (swap! payments assoc (:provider-payment/reference payment) payment)
                         payment)
@@ -54,7 +65,7 @@
                                                                            {:provider :fake :provider-reference (:provider-payment/reference payment)
                                                                             :retryable? false :outcome-known? false})))
       (throw (port/provider-error :provider.error/unexpected-response
-                                  {:provider :fake :retryable? false :outcome-known? true})))))
+                                  {:provider :fake :retryable? false :outcome-known? true}))))))
   (fetch-payment [_ provider-reference]
     (if (= mode :commit-then-timeout-fetch-unavailable)
       (throw (port/provider-error :provider.error/unavailable

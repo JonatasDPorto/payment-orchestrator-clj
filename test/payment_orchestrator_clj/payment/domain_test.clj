@@ -25,6 +25,10 @@
   (is (= :payment.method/pix
          (:payment/method (payment/new-payment (assoc valid-command :method :payment.method/pix))))))
 
+(deftest accepts-the-canonical-boleto-payment-method
+  (is (= :payment.method/boleto
+         (:payment/method (payment/new-payment (assoc valid-command :method :payment.method/boleto))))))
+
 (deftest rejects-invalid-money
   (testing "zero amount" (is (= :payment.validation/amount-must-be-positive
                                 (:error/code (ex-data-for #(payment/new-payment (assoc valid-command :amount 0)))))))

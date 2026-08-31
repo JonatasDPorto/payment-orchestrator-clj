@@ -51,6 +51,27 @@
     (catch clojure.lang.ExceptionInfo error
       (is (= :provider.error/unexpected-response (:provider/error (ex-data error)))))))
 
+(deftest boleto-create-request-and-voucher-action-are-canonical
+  (let [request (mapper/create-request {:operation/id #uuid "0c8b8d05-09a0-44c4-bd44-f831ac8958ce"
+                                        :payment/id #uuid "9c8b8d05-09a0-44c4-bd44-f831ac8958ce"
+                                        :amount 100 :currency :BRL :method :payment.method/boleto
+                                        :boleto {:tax-id "000.000.000-00" :email "succeed_immediately@example.com" :name "Stripe Test"
+                                                 :address {:line1 "1234 Av Paulista" :city "Sao Paulo" :state "SP"
+                                                           :postal-code "01310-000" :country "BR"}}}
+                                       nil)
+        result (mapper/payment-intent->provider-result (fixture "payment-intent-boleto-requires-action"))]
+    (is (= "boleto" (get-in request [:form "payment_method_types[]"])))
+    (is (= "boleto" (get-in request [:form "payment_method_data[type]"])))
+    (is (= "000.000.000-00" (get-in request [:form "payment_method_data[boleto][tax_id]"])))
+    (is (= "BR" (get-in request [:form "payment_method_data[billing_details][address][country]"])))
+    (is (= :provider.status/requires-action (:provider-payment/status result)))
+    (is (= {:action/type :boleto/voucher
+            :action/payload "00190500954014481606906809350314337370000000100"
+            :action/hosted-instructions-url "https://stripe.example/boleto/voucher"
+            :action/document-url "https://stripe.example/boleto/voucher.pdf"
+            :action/expires-at (java.time.Instant/parse "2030-01-03T23:59:59Z")}
+           (:provider-payment/action result)))))
+
 (deftest pix-test-scenario-emails-and-refunds-use-canonical-stripe-requests
   (doseq [email ["succeed_immediately@example.com"
                  "expire_immediately@example.com"

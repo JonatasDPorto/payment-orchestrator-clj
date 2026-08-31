@@ -87,3 +87,19 @@
        (is (= :pix/qr-code (get-in stored [:payment/action :payment-action/type])))
        (is (= "2030-01-01T00:00:00Z"
               (str (get-in stored [:payment/action :payment-action/expires-at]))))))))
+
+(deftest boleto-provider-result-persists-only-the-canonical-action
+  (support/with-test-database
+   (fn [connection]
+     (let [payments (datomic-repository/new-repository connection)
+           dependencies {:payments payments :gateway (fake/new-gateway {:mode :always-success})
+                         :clock #(Instant/parse "2026-08-30T12:00:00Z") :id-generator #(UUID/randomUUID)}
+           result (service/create-payment-idempotently! dependencies
+                                                        {:customer-id "customer-123" :amount 100 :currency :BRL
+                                                         :method :payment.method/boleto}
+                                                        "boleto-provider-key" {:source :source/test})
+           stored (repository/find-payment payments (get-in result [:payment :payment/id]))]
+       (is (= :payment.status/requires-action (:payment/status stored)))
+       (is (= :boleto/voucher (get-in stored [:payment/action :payment-action/type])))
+       (is (= "https://fake-provider.test/boleto/voucher" (get-in stored [:payment/action :payment-action/hosted-instructions-url])))
+       (is (= "https://fake-provider.test/boleto/voucher.pdf" (get-in stored [:payment/action :payment-action/document-url])))))))

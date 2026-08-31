@@ -23,6 +23,12 @@ Create request (Pix):
 {"customerId":"cust-demo","amount":12990,"currency":"BRL","method":"pix","pix":{"taxId":"000.000.000-00","email":"pix@example.test","name":"Pix Test"}}
 ```
 
+Create request (Boleto):
+
+```json
+{"customerId":"cust-demo","amount":1000,"currency":"BRL","method":"boleto","boleto":{"taxId":"000.000.000-00","email":"succeed_immediately@example.com","name":"Boleto Test","address":{"line1":"1234 Av Paulista","city":"Sao Paulo","state":"SP","postalCode":"01310-000","country":"BR"}}}
+```
+
 A Pix create response in `requires-action` contains only the canonical action:
 
 ```json
@@ -32,6 +38,14 @@ A Pix create response in `requires-action` contains only the canonical action:
 `payload` is the copy-and-paste Pix value. `qrCodeUrl` and `hostedInstructionsUrl` are present only when supplied by the provider. The API never exposes Stripe's full `next_action` object or raw provider payloads.
 
 The `pix` object is used only to create the provider payment method; it is never persisted or logged. In Stripe test mode, `000.000.000-00` is the documented test CPF. Production callers must provide the actual required customer details through an approved privacy process.
+
+A Boleto create response remains `requires-action`; voucher generation is not payment confirmation:
+
+```json
+{"id":"...","status":"requires-action","amount":1000,"currency":"BRL","action":{"type":"boleto_voucher","number":"001905...","hostedVoucherUrl":"https://...","pdfUrl":"https://...","expiresAt":"2030-01-03T23:59:59Z"}}
+```
+
+The `boleto` object is used only for provider confirmation and is never persisted or logged. Stripe delivers `payment_intent.succeeded` after payment and `payment_intent.payment_failed` after expiry; the signed webhook is the source of those status changes. Stripe documents that Boleto payments cannot be refunded.
 
 Send `Idempotency-Key` with every create. A repeated equivalent request returns the original payment; a changed request under the same key returns `409`.
 

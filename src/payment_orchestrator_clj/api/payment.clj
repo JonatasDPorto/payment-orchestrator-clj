@@ -16,11 +16,23 @@
    [:customerId [:and string? [:fn (complement clojure.string/blank?)]]]
    [:amount [:and int? [:fn pos?]]]
    [:currency [:enum "BRL"]]
-   [:method [:enum "card" "pix"]]
+   [:method [:enum "card" "pix" "boleto"]]
    [:pix {:optional true} [:map {:closed true}
                            [:taxId [:and string? [:fn (complement clojure.string/blank?)]]]
                            [:email [:and string? [:fn (complement clojure.string/blank?)]]]
-                           [:name [:and string? [:fn (complement clojure.string/blank?)]]]]]])
+                           [:name [:and string? [:fn (complement clojure.string/blank?)]]]]]
+   [:boleto {:optional true}
+    [:map {:closed true}
+     [:taxId [:and string? [:fn (complement clojure.string/blank?)]]]
+     [:email [:and string? [:fn (complement clojure.string/blank?)]]]
+     [:name [:and string? [:fn (complement clojure.string/blank?)]]]
+     [:address
+      [:map {:closed true}
+       [:line1 [:and string? [:fn (complement clojure.string/blank?)]]]
+       [:city [:and string? [:fn (complement clojure.string/blank?)]]]
+       [:state [:and string? [:fn (complement clojure.string/blank?)]]]
+       [:postalCode [:and string? [:fn (complement clojure.string/blank?)]]]
+       [:country [:= "BR"]]]]]]])
 
 (defn- json-response [status body]
   {:status status
@@ -43,7 +55,16 @@
    :currency (keyword (:currency request))
    :method (keyword "payment.method" (:method request))
    :pix (when-let [pix (:pix request)]
-          {:tax-id (:taxId pix) :email (:email pix) :name (:name pix)})})
+          {:tax-id (:taxId pix) :email (:email pix) :name (:name pix)})
+   :boleto (when-let [boleto (:boleto request)]
+             {:tax-id (:taxId boleto)
+              :email (:email boleto)
+              :name (:name boleto)
+              :address {:line1 (get-in boleto [:address :line1])
+                        :city (get-in boleto [:address :city])
+                        :state (get-in boleto [:address :state])
+                        :postal-code (get-in boleto [:address :postalCode])
+                        :country (get-in boleto [:address :country])}})})
 
 (defn- valid-pix-request? [body]
   (or (not= "pix" (:method body))
@@ -53,6 +74,20 @@
                    [:name [:and string? [:fn (complement clojure.string/blank?)]]]]
                   (:pix body))))
 
+(defn- valid-boleto-request? [body]
+  (or (not= "boleto" (:method body))
+      (m/validate [:map {:closed true}
+                   [:taxId [:and string? [:fn (complement clojure.string/blank?)]]]
+                   [:email [:and string? [:fn (complement clojure.string/blank?)]]]
+                   [:name [:and string? [:fn (complement clojure.string/blank?)]]]
+                   [:address [:map {:closed true}
+                              [:line1 [:and string? [:fn (complement clojure.string/blank?)]]]
+                              [:city [:and string? [:fn (complement clojure.string/blank?)]]]
+                              [:state [:and string? [:fn (complement clojure.string/blank?)]]]
+                              [:postalCode [:and string? [:fn (complement clojure.string/blank?)]]]
+                              [:country [:= "BR"]]]]]
+                  (:boleto body))))
+
 (defn- action-response [action]
   (case (:action/type action)
     :pix/qr-code (cond-> {:type "pix_qr_code"
@@ -61,19 +96,25 @@
                    (:action/qr-code-url action) (assoc :qrCodeUrl (:action/qr-code-url action))
                    (:action/hosted-instructions-url action) (assoc :hostedInstructionsUrl (:action/hosted-instructions-url action)))
     :client-secret {:type "client_secret" :value (:action/value action)}
+    :boleto/voucher (cond-> {:type "boleto_voucher"
+                             :number (:action/payload action)
+                             :hostedVoucherUrl (:action/hosted-instructions-url action)
+                             :expiresAt (str (:action/expires-at action))}
+                      (:action/document-url action) (assoc :pdfUrl (:action/document-url action)))
     nil))
 
 (defn payment-response
   ([payment] (payment-response payment nil))
   ([payment provider-result]
    (let [persisted-action (:payment/action payment)
-         action (or (when (= :pix/qr-code (:payment-action/type persisted-action))
-                      {:action/type :pix/qr-code
+         action (or (when-let [action-type (:payment-action/type persisted-action)]
+                      {:action/type action-type
                        :action/payload (:payment-action/payload persisted-action)
                        :action/qr-code-url (:payment-action/qr-code-url persisted-action)
                        :action/hosted-instructions-url (:payment-action/hosted-instructions-url persisted-action)
+                       :action/document-url (:payment-action/document-url persisted-action)
                        :action/expires-at (:payment-action/expires-at persisted-action)})
-                    (when (= :payment.method/pix (:payment/method payment))
+                    (when (contains? #{:payment.method/pix :payment.method/boleto} (:payment/method payment))
                       (:provider-payment/action provider-result)))]
      (cond-> {:id (str (:payment/id payment))
               :status (name (:payment/status payment))
@@ -99,7 +140,7 @@
       (if (= ::invalid-json body)
         (error-response 400 "invalid_json" "Request body must be valid JSON" {})
         (try
-          (if-not (and (m/validate create-payment-request body) (valid-pix-request? body))
+          (if-not (and (m/validate create-payment-request body) (valid-pix-request? body) (valid-boleto-request? body))
             (error-response 400 "invalid_payment" "Payment request is invalid"
                             {:validation (me/humanize (m/explain create-payment-request body))})
           (if-let [key (idempotency-key request)]

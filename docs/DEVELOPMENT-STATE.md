@@ -1,9 +1,8 @@
 # Development state
 
-- Milestone: M19 — PIX
-- Status: IN_PROGRESS
-- Completed: Canonical Pix QR action with copy-and-paste payload, optional QR/hosted-instructions URLs and expiry; Stripe `confirm=true` PaymentIntent mapper; test CPF and documented test-email request coverage; Fake Provider/API/Datomic support; asynchronous `payment_intent.succeeded` and `payment_intent.payment_failed` processing with webhook idempotency; and generic Pix PaymentIntent refund request coverage.
-- Remaining: Stripe's real test API must accept a Pix PaymentIntent for this account so the QR-generation and test-email scenarios can be validated end-to-end.
-- Last tests: Unit suite passed (63 tests, 177 assertions); integration suite passed (18 tests, 62 assertions). The live Pix sandbox call using `.env` reached Stripe and returned HTTP 400, code `payment_intent_invalid_parameter`, request ID `req_2I5Qqs4IRiNkdE`, specifically rejecting `payment_method_types[]=pix` for this account.
-- Decision: The adapter uses the requested direct PaymentIntent flow (`payment_method_types[]=pix`, `currency=brl`, `confirm=true`, and `payment_method_data` with test CPF). It does not misrepresent account-ineligibility as a successful Pix test.
-- Next action: obtain Stripe account/test-mode eligibility for Pix or a test account where the direct Pix PaymentIntent request is accepted, then run `docker run --rm --env-file .env -v "${PWD}:/workspace" -w /workspace clojure:temurin-21-tools-deps clojure -M:test-stripe-pix-sandbox`.
+- Milestone: M20 — Boleto
+- Status: COMPLETED
+- Completed: Canonical Boleto payment method and voucher action; Stripe direct PaymentIntent confirmation with required billing data; Fake Provider, API, Datomic schema/persistence, mapper fixture, and sandbox integration coverage; documented asynchronous webhook semantics and non-refundable provider limitation.
+- Last tests: Unit suite passed (68 tests, 196 assertions); integration suite passed (20 tests, 67 assertions); Stripe Boleto sandbox passed (1 test, 6 assertions) and Stripe card sandbox passed (1 test, 3 assertions) using `.env`. The first Boleto live request correctly identified the provider minimum amount (`amount_too_small` at 100), then passed at 1000. M19 Pix remains externally blocked by Stripe account eligibility (request ID `req_2I5Qqs4IRiNkdE`) and was not treated as an M20 blocker.
+- Decision: A generated Boleto voucher is `requires-action`, never paid. Only canonical voucher data is persisted; customer billing details are transient and never logged. Stripe's documented Boleto refund limitation is retained rather than inventing a refund flow.
+- Next action: Await explicit authorization for M21. Do not start it automatically.

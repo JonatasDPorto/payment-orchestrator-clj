@@ -150,6 +150,16 @@ docker run --rm --env-file .env -v "${PWD}:/workspace" -w /workspace clojure:tem
 
 The sandbox suite sends `payment_method_types[]=pix`, `currency=brl`, `confirm=true`, and the documented test CPF. It never claims success when Stripe reports that the account is ineligible; inspect the returned request ID in that case.
 
+## Boleto (M20)
+
+Boleto is a provider-neutral voucher action. Its generated number, hosted voucher URL, optional PDF URL, and expiry are persisted without retaining the billing details used to create it. Generating the voucher returns `requires-action`; settlement or expiry is applied only by the signed Stripe webhook.
+
+```powershell
+docker run --rm --env-file .env -v "${PWD}:/workspace" -w /workspace clojure:temurin-21-tools-deps clojure -M:test-stripe-boleto-sandbox
+```
+
+Stripe requires BRL and a minimum amount for Boleto; the sandbox suite uses `1000` minor units. Boleto payments cannot be refunded through Stripe.
+
 ## REPL de desenvolvimento
 
 ```bash

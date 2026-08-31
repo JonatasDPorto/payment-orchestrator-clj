@@ -21,4 +21,6 @@
   :test-stripe-sandbox {:extra-paths ["test"]
                         :main-opts ["-m" "payment-orchestrator-clj.stripe-sandbox-test-runner"]}
   :test-stripe-pix-sandbox {:extra-paths ["test"]
-                            :main-opts ["-m" "payment-orchestrator-clj.stripe-pix-sandbox-test-runner"]}}}
+                            :main-opts ["-m" "payment-orchestrator-clj.stripe-pix-sandbox-test-runner"]}
+  :test-stripe-boleto-sandbox {:extra-paths ["test"]
+                               :main-opts ["-m" "payment-orchestrator-clj.stripe-boleto-sandbox-test-runner"]}}}
