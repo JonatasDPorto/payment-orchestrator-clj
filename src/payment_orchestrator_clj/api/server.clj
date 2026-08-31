@@ -8,7 +8,9 @@
             [payment-orchestrator-clj.datomic.schema :as schema]
             [payment-orchestrator-clj.payment.datomic-repository :as datomic-repository]
             [payment-orchestrator-clj.provider.fake :as fake]
-            [payment-orchestrator-clj.provider.stripe.adapter :as stripe])
+            [payment-orchestrator-clj.provider.stripe.adapter :as stripe]
+            [payment-orchestrator-clj.webhook.datomic-repository :as webhook-repository]
+            [payment-orchestrator-clj.webhook.service :as webhook-service])
   (:import [java.time Instant]
            [java.util UUID]))
 
@@ -34,9 +36,12 @@
                                   {:provider provider})))]
     (schema/install! connection)
     {:payments (datomic-repository/new-repository connection)
+     :provider-events (webhook-repository/new-repository connection)
      :gateway gateway
      :clock #(Instant/now)
-     :id-generator #(UUID/randomUUID)}))
+     :id-generator #(UUID/randomUUID)
+     :stripe-webhook-secret (System/getenv "STRIPE_WEBHOOK_SECRET")
+     :dispatcher webhook-service/dispatch!}))
 
 (defn start! []
   (let [application-config (config/base-config)

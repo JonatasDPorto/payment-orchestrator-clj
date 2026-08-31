@@ -96,6 +96,24 @@ Para iniciar a API com Stripe, defina as mesmas variáveis e selecione o provide
 docker run --rm -p 8080:8080 --env-file .env -v "${PWD}:/workspace" -w /workspace clojure:temurin-21-tools-deps clojure -M -m payment-orchestrator-clj.core
 ```
 
+## Stripe Webhook Inbox (M7)
+
+`POST /webhooks/stripe` valida o header `Stripe-Signature` sobre o corpo original antes de interpretar JSON. Eventos válidos entram em uma inbox Datomic idempotente e são processados fora da requisição. Apenas hash SHA-256 e campos operacionais são persistidos; o payload completo não é armazenado.
+
+Para a demonstração local, inclua `STRIPE_WEBHOOK_SECRET` no `.env`, suba a API com o comando anterior e encaminhe eventos pelo Stripe CLI:
+
+```powershell
+stripe listen --forward-to http://localhost:8080/webhooks/stripe
+```
+
+Copie o segredo `whsec_...` exibido pelo CLI para `STRIPE_WEBHOOK_SECRET` e reinicie o container. Em seguida, crie um pagamento pela API M6: o Payment Intent criado pela aplicação será encaminhado pelo CLI e poderá ser associado ao pagamento local.
+
+Para validar apenas a entrega do endpoint com um evento independente, use:
+
+```powershell
+stripe trigger payment_intent.succeeded
+```
+
 ## REPL de desenvolvimento
 
 ```bash
