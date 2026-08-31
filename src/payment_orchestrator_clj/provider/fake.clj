@@ -26,14 +26,28 @@
       :always-fail (throw (port/provider-error :provider.error/declined
                                                 {:provider :fake :retryable? false :outcome-known? true}))
       :timeout (throw (port/provider-error :provider.error/timeout
-                                           {:provider :fake :retryable? false :outcome-known? false}))
+                                           {:provider :fake :provider-reference (reference (:payment/id command))
+                                            :retryable? false :outcome-known? false}))
+      :commit-then-timeout (let [payment (result command :provider.status/succeeded "SUCCEEDED")]
+                             (swap! payments assoc (:provider-payment/reference payment) payment)
+                             (throw (port/provider-error :provider.error/timeout
+                                                        {:provider :fake :provider-reference (:provider-payment/reference payment)
+                                                         :retryable? false :outcome-known? false})))
+      :commit-then-timeout-fetch-unavailable (let [payment (result command :provider.status/succeeded "SUCCEEDED")]
+                                                (swap! payments assoc (:provider-payment/reference payment) payment)
+                                                (throw (port/provider-error :provider.error/timeout
+                                                                           {:provider :fake :provider-reference (:provider-payment/reference payment)
+                                                                            :retryable? false :outcome-known? false})))
       (throw (port/provider-error :provider.error/unexpected-response
                                   {:provider :fake :retryable? false :outcome-known? true}))))
   (fetch-payment [_ provider-reference]
-    (or (get @payments provider-reference)
-        (throw (port/provider-error :provider.error/invalid-request
-                                    {:provider :fake :provider-reference provider-reference
-                                     :retryable? false :outcome-known? true}))))
+    (if (= mode :commit-then-timeout-fetch-unavailable)
+      (throw (port/provider-error :provider.error/unavailable
+                                  {:provider :fake :retryable? true :outcome-known? false}))
+      (or (get @payments provider-reference)
+          (throw (port/provider-error :provider.error/invalid-request
+                                      {:provider :fake :provider-reference provider-reference
+                                       :retryable? false :outcome-known? true})))))
   (cancel-payment! [_ command] (result command :provider.status/cancelled "CANCELLED"))
   (refund-payment! [_ command] (result command :provider.status/succeeded "REFUNDED")))
 
