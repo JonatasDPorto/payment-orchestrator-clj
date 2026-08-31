@@ -164,6 +164,23 @@ Stripe requires BRL and a minimum amount for Boleto; the sandbox suite uses `100
 
 Subscriptions, invoices, and payments are separate aggregates. A subscription stores the recurring agreement; an invoice records a single amount due and can reference the payment created to collect it. This milestone intentionally does not call a provider recurring-billing API or schedule collections automatically.
 
+## Advanced refunds (M22)
+
+Refunds are immutable canonical records. A payment may receive partial or
+multiple refunds while their sum remains at or below the captured amount. The
+payment becomes `partially-refunded` or `refunded` from that aggregate. Provider
+refunds receive only the original provider payment reference and an amount; no
+provider-specific object is returned by the public API.
+
+```powershell
+curl.exe -X POST "http://localhost:8080/v1/payments/<PAYMENT_ID>/refunds" -H "Authorization: Bearer <PAYMENT_ORCHESTRATOR_API_KEY>" -H "Content-Type: application/json" -d '{"amount":400}'
+```
+
+The response is `409 refund_amount_exceeds_captured` when the requested amount
+would make the aggregate exceed the captured amount. Refund reconciliation
+records provider/local amount mismatches for investigation without changing
+financial history automatically.
+
 ## REPL de desenvolvimento
 
 ```bash

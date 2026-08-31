@@ -12,9 +12,10 @@
             [payment-orchestrator-clj.datomic.schema.v010 :as v010]
             [payment-orchestrator-clj.datomic.schema.v011 :as v011]
             [payment-orchestrator-clj.datomic.schema.v012 :as v012]
-            [payment-orchestrator-clj.datomic.schema.v013 :as v013]))
+            [payment-orchestrator-clj.datomic.schema.v013 :as v013]
+            [payment-orchestrator-clj.datomic.schema.v014 :as v014]))
 
-(def schema (into [] (concat v001/schema v002/schema v003/schema v004/schema v005/schema v006/schema v007/schema v008/schema v009/schema v010/schema v011/schema v012/schema v013/schema)))
+(def schema (into [] (concat v001/schema v002/schema v003/schema v004/schema v005/schema v006/schema v007/schema v008/schema v009/schema v010/schema v011/schema v012/schema v013/schema v014/schema)))
 
 (defn install! [connection]
   (d/transact connection {:tx-data schema}))

@@ -7,6 +7,7 @@
             [payment-orchestrator-clj.datomic.client :as datomic-client]
             [payment-orchestrator-clj.datomic.schema :as schema]
             [payment-orchestrator-clj.payment.datomic-repository :as datomic-repository]
+            [payment-orchestrator-clj.refund.datomic-repository :as refund-repository]
             [payment-orchestrator-clj.audit.datomic-repository :as audit-repository]
             [payment-orchestrator-clj.reconciliation.datomic-repository :as reconciliation-repository]
             [payment-orchestrator-clj.reconciliation.service :as reconciliation]
@@ -57,7 +58,8 @@
     (schema/install! connection)
     (let [ledger-repository (ledger-repository/new-repository connection)]
       (ledger/ensure-accounts! ledger-repository)
-      {:payments (datomic-repository/new-repository connection)
+     {:payments (datomic-repository/new-repository connection)
+     :refunds (refund-repository/new-repository connection)
      :audit (audit-repository/new-repository connection)
      :operations (reconciliation-repository/new-repository connection)
      :provider-events (webhook-repository/new-repository connection)

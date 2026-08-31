@@ -75,7 +75,9 @@
                                       {:provider :fake :provider-reference provider-reference
                                        :retryable? false :outcome-known? true})))))
   (cancel-payment! [_ command] (result command :provider.status/cancelled "CANCELLED"))
-  (refund-payment! [_ command] (result command :provider.status/succeeded "REFUNDED")))
+  (refund-payment! [_ command]
+    {:provider :fake :provider-refund/reference (str "fake-refund-" (:operation/id command))
+     :provider-payment/status :provider.status/succeeded :provider-payment/raw-status "REFUNDED"}))
 
 (defn new-gateway [{:keys [mode latency-ms] :or {mode :always-success latency-ms 5000}}]
   (->FakeGateway mode (atom {}) latency-ms))

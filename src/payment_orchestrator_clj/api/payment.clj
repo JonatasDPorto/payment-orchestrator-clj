@@ -7,6 +7,7 @@
             [payment-orchestrator-clj.payment.repository :as repository]
             [payment-orchestrator-clj.audit.repository :as audit]
             [payment-orchestrator-clj.ledger.repository :as ledger]
+            [payment-orchestrator-clj.refund.service :as refund]
             [payment-orchestrator-clj.payment.service :as service])
   (:import [java.time Instant]
            [java.util UUID]))
@@ -223,3 +224,35 @@
                                                                (:journal/postings journal))})
                                             (ledger/payment-journals (:ledger dependencies) payment-id))})
         (error-response 404 "payment_not_found" "Payment was not found" {})))))
+
+(def refund-request [:map {:closed true} [:amount [:and int? [:fn pos?]]]])
+
+(defn refund-payment-handler [dependencies]
+  (fn [request]
+    (let [payment-id (try (UUID/fromString (get-in request [:path-params :id])) (catch IllegalArgumentException _ nil))
+          body (try (decode-body request) (catch Exception _ ::invalid-json))]
+      (cond
+        (= body ::invalid-json) (error-response 400 "invalid_json" "Request body must be valid JSON" {})
+        (nil? payment-id) (error-response 404 "payment_not_found" "Payment was not found" {})
+        (not (m/validate refund-request body)) (error-response 400 "invalid_refund" "Refund request is invalid" {})
+        :else (try
+                (let [payment (repository/find-payment (:payments dependencies) payment-id)]
+                  (if-not (and payment (= (or (:payment/merchant-id payment) "default") (merchant-id request)))
+                    (error-response 404 "payment_not_found" "Payment was not found" {})
+                    (let [key (idempotency-key request)]
+                      (if-not key
+                        (error-response 400 "missing_idempotency_key" "Idempotency-Key header is required" {})
+                        (let [{:keys [refund payment]} (refund/refund-payment! dependencies payment-id (:amount body)
+                                                                            (assoc (request-context request) :reason :reason/refund-create
+                                                                                   :refund/id (UUID/nameUUIDFromBytes (.getBytes (str payment-id ":" key) "UTF-8"))))]
+                      (json-response 201 {:id (str (:refund/id refund)) :paymentId (str payment-id)
+                                          :amount (:refund/amount refund) :status (name (:refund/status refund))
+                                          :paymentStatus (name (:payment/status payment))}))))))
+                (catch clojure.lang.ExceptionInfo error
+                  (case (:error/code (ex-data error))
+                    :refund/payment-not-found (error-response 404 "payment_not_found" "Payment was not found" {})
+                    :refund/payment-not-refundable (error-response 409 "payment_not_refundable" "Payment cannot be refunded" {})
+                    :refund.validation/exceeds-captured (error-response 409 "refund_amount_exceeds_captured" "Refund exceeds the captured amount" {})
+                    (if (:provider/error? (ex-data error))
+                      (error-response 502 "provider_error" "Payment provider could not complete the operation" {})
+                      (error-response 400 "invalid_refund" "Refund request is invalid" {})))))))))

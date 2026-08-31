@@ -84,9 +84,9 @@
                                            :pix {:tax-id "000.000.000-00" :email email :name "Stripe Test"}}
                                           nil)
                     [:form "payment_method_data[billing_details][email]"]))))
-  (is (= {"payment_intent" "pi_pix_refund"}
+  (is (= {"payment_intent" "pi_pix_refund" "amount" "100"}
          (:form (mapper/refund-request {:operation/id #uuid "0c8b8d05-09a0-44c4-bd44-f831ac8958ce"
-                                        :provider-payment/reference "pi_pix_refund"})))))
+                                        :provider-payment/reference "pi_pix_refund" :refund/amount 100})))))
 
 (deftest payment-intent-statuses-map-to-canonical-results
   (let [succeeded (mapper/payment-intent->provider-result (fixture "payment-intent-succeeded"))

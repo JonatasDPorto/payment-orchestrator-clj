@@ -6,7 +6,8 @@
             [payment-orchestrator-clj.audit.repository :as audit]
             [payment-orchestrator-clj.provider.fake :as fake]
             [payment-orchestrator-clj.security :as security]
-            [payment-orchestrator-clj.payment.repository :as repository])
+            [payment-orchestrator-clj.payment.repository :as repository]
+            [payment-orchestrator-clj.refund.repository :as refund-repository])
   (:import [java.io ByteArrayInputStream]
            [java.time Instant]
            [java.util UUID]))
@@ -40,11 +41,20 @@
   (payment-as-of [_ payment-id _] (get @as-of payment-id))
   (payment-history [_ payment-id] (get @history payment-id [])))
 
+(defrecord InMemoryRefunds [records]
+  refund-repository/RefundRepository
+  (save-refund! [_ refund _] (swap! records conj refund) refund)
+  (find-refund [_ refund-id] (some #(when (= refund-id (:refund/id %)) %) @records))
+  (refunds-for-payment [_ payment-id] (filterv #(= payment-id (:refund/payment-id %)) @records))
+  (provider-payment-for [_ _] {:provider-payment/provider :fake :provider-payment/reference "fake-payment"})
+  (record-reconciliation! [_ reconciliation _] reconciliation))
+
 (defn- api
   ([] (api {}))
   ([overrides]
    (routes/handler (merge {:payments (->InMemoryPayments (atom {}) (atom {}))
                            :api-key "test-api-key"
+                           :refunds (->InMemoryRefunds (atom []))
                            :audit (->InMemoryAudit (atom {}) (atom {}))
                            :gateway (fake/new-gateway {:mode :always-success})
                            :clock #(Instant/parse "2026-08-30T12:00:00Z")
@@ -106,6 +116,19 @@
     (is (= 201 (:status response)))
     (is (= {:id "fc1b6fa6-1ed5-4211-a9fd-fb4e1dfefa0d" :status "processing" :amount 12990 :currency "BRL"}
            (response-body response)))))
+
+(deftest partial-refund-has-a-canonical-response-and-prevents-over-refund
+  (let [payment-id (UUID/fromString "fc1b6fa6-1ed5-4211-a9fd-fb4e1dfefa0d")
+        payment-store (->InMemoryPayments (atom {payment-id {:payment/id payment-id :payment/merchant-id "default"
+                                                              :payment/amount 1000 :payment/currency :BRL
+                                                              :payment/method :payment.method/card :payment/status :payment.status/paid}}) (atom {}))
+        handler (api {:payments payment-store})
+        first-response (handler (request :post (str "/v1/payments/" payment-id "/refunds") "{\"amount\":400}"))
+        second-response (handler (request :post (str "/v1/payments/" payment-id "/refunds") "{\"amount\":700}" "different-refund-key"))]
+    (is (= 201 (:status first-response)))
+    (is (= "partially-refunded" (:paymentStatus (response-body first-response))))
+    (is (= 409 (:status second-response)))
+    (is (= "refund_amount_exceeds_captured" (get-in (response-body second-response) [:error :code])))))
 
 (deftest post-pix-payment-returns-a-canonical-qr-code-action
   (let [response ((api) (request :post "/v1/payments"

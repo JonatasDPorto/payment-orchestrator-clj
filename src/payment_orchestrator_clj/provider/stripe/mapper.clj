@@ -68,7 +68,8 @@
   {:method :post
    :path "/v1/refunds"
    :idempotency-key (operation-idempotency-key (:operation/id command) "refund-payment")
-   :form {"payment_intent" (:provider-payment/reference command)}})
+   :form {"payment_intent" (:provider-payment/reference command)
+          "amount" (str (:refund/amount command))}})
 
 (defn- canonical-status [stripe-status]
   (case stripe-status
@@ -129,6 +130,7 @@
 
 (defn refund->provider-result [{:keys [body request-id]}]
   {:provider :stripe
+   :provider-refund/reference (:id body)
    :provider-payment/reference (:payment_intent body)
    :provider-payment/status (if (= "succeeded" (:status body))
                               :provider.status/succeeded

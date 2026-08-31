@@ -14,6 +14,8 @@
             [payment-orchestrator-clj.provider.stripe-mapper-test]
             [payment-orchestrator-clj.performance-test]
             [payment-orchestrator-clj.security-test]
+            [payment-orchestrator-clj.refund.domain-test]
+            [payment-orchestrator-clj.refund.service-test]
             [payment-orchestrator-clj.subscription.domain-test]
             [payment-orchestrator-clj.webhook-test]))
 
@@ -32,6 +34,8 @@
    'payment-orchestrator-clj.provider.stripe-mapper-test
    'payment-orchestrator-clj.performance-test
    'payment-orchestrator-clj.security-test
+   'payment-orchestrator-clj.refund.domain-test
+   'payment-orchestrator-clj.refund.service-test
    'payment-orchestrator-clj.subscription.domain-test
    'payment-orchestrator-clj.webhook-test])
 

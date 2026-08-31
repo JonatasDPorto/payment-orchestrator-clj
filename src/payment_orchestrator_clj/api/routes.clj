@@ -11,6 +11,7 @@
    (ring/router
      [["/metrics" {:get {:handler (fn [_] {:status 200 :headers {"content-type" "text/plain"} :body (metrics/render (:metrics dependencies))})}}]
       ["/v1/payments" {:post {:handler (payment/create-payment-handler dependencies)}}]
+     ["/v1/payments/:id/refunds" {:post {:handler (payment/refund-payment-handler dependencies)}}]
      ["/v1/payments/:id/history" {:get {:handler (payment/payment-history-handler dependencies)}}]
      ["/v1/payments/:id/ledger" {:get {:handler (payment/payment-ledger-handler dependencies)}}]
      ["/v1/payments/:id" {:get {:handler (payment/find-payment-handler dependencies)}}]

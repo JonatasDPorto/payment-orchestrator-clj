@@ -47,6 +47,20 @@ A Boleto create response remains `requires-action`; voucher generation is not pa
 
 The `boleto` object is used only for provider confirmation and is never persisted or logged. Stripe delivers `payment_intent.succeeded` after payment and `payment_intent.payment_failed` after expiry; the signed webhook is the source of those status changes. Stripe documents that Boleto payments cannot be refunded.
 
+## Refund a payment
+
+`POST /v1/payments/{paymentId}/refunds` creates one immutable refund. `amount`
+is an integer in BRL minor units. The service accepts partial and multiple
+refunds, but rejects a request whose total would exceed the captured amount.
+
+```json
+{"amount": 400}
+```
+
+Successful requests return `201` with the canonical refund and resulting
+payment status. The API returns `409 refund_amount_exceeds_captured` when the
+aggregate refund amount would exceed the captured payment amount.
+
 Send `Idempotency-Key` with every create. A repeated equivalent request returns the original payment; a changed request under the same key returns `409`.
 
 Provider selection is internal. Routing can use merchant, currency, payment method, a configured default, availability, or configured cost; no provider name belongs in this public request. A route with no safe available provider fails rather than charging through an alternative provider.
