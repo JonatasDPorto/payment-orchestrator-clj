@@ -1,5 +1,6 @@
 (ns payment-orchestrator-clj.webhook.service
   (:require [payment-orchestrator-clj.payment.domain :as domain]
+            [payment-orchestrator-clj.observability.metrics :as metrics]
             [payment-orchestrator-clj.ledger.service :as ledger]
             [payment-orchestrator-clj.payment.repository :as payments]
             [payment-orchestrator-clj.provider.stripe.webhook :as stripe]
@@ -12,17 +13,22 @@
    :reason :reason/provider-webhook :event-type :event/provider-webhook
    :request-id (str event-id) :correlation-id (str event-id)})
 
-(defn enqueue-stripe-event! [{:keys [provider-events clock id-generator]} raw-body]
+(defn enqueue-stripe-event! [{:keys [provider-events clock id-generator metrics]} raw-body]
   (let [{:provider-event/keys [external-id] :as event} (stripe/parse-event raw-body)]
     (when-not (and (string? external-id) (seq external-id))
       (throw (ex-info "Stripe event is missing an identifier" {:error/code :webhook/invalid-event})))
-    (events/enqueue! provider-events
+    (let [result (events/enqueue! provider-events
                      (assoc event
                             :provider-event/id (id-generator)
                             :provider-event/dedupe-key (str "stripe:" external-id)
                             :provider-event/payload-sha256 (stripe/payload-hash raw-body)
                             :provider-event/received-at (clock))
-                     {:source :source/webhook})))
+                     {:source :source/webhook})]
+      (when metrics
+        (swap! metrics update "webhook_received_total" (fnil inc 0))
+        (when (= :duplicate (:outcome result))
+          (swap! metrics update "webhook_duplicate_total" (fnil inc 0))))
+      result)))
 
 (defn- apply-event! [{:keys [provider-events payments clock id-generator ledger] :as dependencies} event]
   (let [event-id (:provider-event/id event)

@@ -43,12 +43,14 @@
 
 (defn run-once!
   "Publishes from the Datomic log and advances the checkpoint only after each tx publishes."
-  [{:keys [connection producer clock]}]
+  [{:keys [connection producer clock metrics]}]
   (let [last-t (:relay/last-t (checkpoint connection))
         transactions (d/tx-range connection {:start (when last-t (inc last-t))})]
     (reduce (fn [published transaction]
               (doseq [event (transaction-events connection transaction)]
                 (producer/publish! producer event))
               (save-checkpoint! connection (:t transaction) (clock))
-              (+ published (count (transaction-events connection transaction))))
+              (let [count (count (transaction-events connection transaction))]
+                (when metrics (swap! metrics update "event_relay_published_total" (fnil + 0) count))
+                (+ published count)))
             0 transactions)))

@@ -5,6 +5,7 @@
             [payment-orchestrator-clj.payment.repository :as repository]
             [payment-orchestrator-clj.ledger.service :as ledger]
             [payment-orchestrator-clj.reconciliation.repository :as operations]
+            [payment-orchestrator-clj.observability.metrics :as metrics]
             [payment-orchestrator-clj.provider.port :as provider]))
 
 (defn create-payment!
@@ -67,6 +68,7 @@
     (if (not= :created (:outcome local-result))
       local-result
       (let [operation-command (provider-command payment idempotency-key)]
+        (when-let [registry (:metrics dependencies)] (metrics/inc! registry "payment_create_total"))
         (try
           (let [_ (when-let [operation-repository (:operations dependencies)]
                   (operations/start-operation! operation-repository (operation payment operation-command now)
@@ -89,6 +91,9 @@
         (catch clojure.lang.ExceptionInfo error
           (let [data (ex-data error)
                 operation-repository (:operations dependencies)]
+            (when-let [registry (:metrics dependencies)]
+              (metrics/inc! registry "provider_request_errors_total")
+              (when (= :provider.error/timeout (:provider/error data)) (metrics/inc! registry "provider_timeout_total")))
             (when operation-repository
               (operations/complete-operation! operation-repository (:operation/id operation-command)
                                     {:provider-operation/status (if (:outcome-known? data)

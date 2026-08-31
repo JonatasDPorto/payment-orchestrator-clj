@@ -15,7 +15,8 @@
             [payment-orchestrator-clj.provider.fake :as fake]
             [payment-orchestrator-clj.provider.stripe.adapter :as stripe]
             [payment-orchestrator-clj.webhook.datomic-repository :as webhook-repository]
-            [payment-orchestrator-clj.webhook.service :as webhook-service])
+            [payment-orchestrator-clj.webhook.service :as webhook-service]
+            [payment-orchestrator-clj.observability.metrics :as metrics])
   (:import [java.time Instant]
            [java.util UUID]))
 
@@ -48,6 +49,7 @@
      :provider-events (webhook-repository/new-repository connection)
      :ledger ledger-repository
      :gateway gateway
+     :metrics (metrics/registry)
      :clock #(Instant/now)
      :id-generator #(UUID/randomUUID)
      :stripe-webhook-secret (System/getenv "STRIPE_WEBHOOK_SECRET")
