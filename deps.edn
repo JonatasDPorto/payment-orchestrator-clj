@@ -11,6 +11,8 @@
 
  :aliases
  {:dev {:extra-paths ["dev"]}
+  :perf {:extra-paths ["dev" "test"]
+         :main-opts ["-m" "payment-orchestrator-clj.performance-runner"]}
   :test {:extra-paths ["test"]
          :extra-deps {org.clojure/test.check {:mvn/version "1.1.1"}}
          :main-opts ["-m" "payment-orchestrator-clj.test-runner"]}

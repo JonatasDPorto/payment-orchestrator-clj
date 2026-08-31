@@ -11,7 +11,7 @@
            :provider-payment/raw-status raw-status}
     action (assoc :provider-payment/action action)))
 
-(defrecord FakeGateway [mode payments]
+(defrecord FakeGateway [mode payments latency-ms]
   port/PaymentGateway
   (capabilities [_] #{:payment/create :payment/fetch :payment/refund :payment/cancel :method/card})
   (create-payment! [_ command]
@@ -19,6 +19,10 @@
       :always-success (let [payment (result command :provider.status/processing "PROCESSING")]
                         (swap! payments assoc (:provider-payment/reference payment) payment)
                         payment)
+      :slow-success (do (Thread/sleep latency-ms)
+                        (let [payment (result command :provider.status/processing "PROCESSING")]
+                          (swap! payments assoc (:provider-payment/reference payment) payment)
+                          payment))
       :requires-action (let [payment (result command :provider.status/requires-action "REQUIRES_ACTION"
                                              {:action/type :redirect :action/url "https://fake-provider.test/action"})]
                          (swap! payments assoc (:provider-payment/reference payment) payment)
@@ -51,5 +55,5 @@
   (cancel-payment! [_ command] (result command :provider.status/cancelled "CANCELLED"))
   (refund-payment! [_ command] (result command :provider.status/succeeded "REFUNDED")))
 
-(defn new-gateway [{:keys [mode] :or {mode :always-success}}]
-  (->FakeGateway mode (atom {})))
+(defn new-gateway [{:keys [mode latency-ms] :or {mode :always-success latency-ms 5000}}]
+  (->FakeGateway mode (atom {}) latency-ms))
