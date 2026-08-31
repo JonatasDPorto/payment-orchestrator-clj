@@ -26,7 +26,7 @@
                                   {:request-id "request-123"
                                    :correlation-id "correlation-123"
                                    :source :source/test})
-        (is (= (assoc test-payment :payment/events [])
+        (is (= (assoc test-payment :payment/events [] :payment/merchant-id "default")
                (repository/find-payment payments payment-id)))
         (is (= [["request-123" "correlation-123" :source/test]]
                (d/q '[:find ?request-id ?correlation-id ?source

@@ -29,8 +29,12 @@
 (defn- decode-body [request]
   (json/read-str (slurp (:body request)) :key-fn keyword))
 
-(defn- request->command [request]
+(defn- merchant-id [request]
+  (or (get-in request [:headers "x-merchant-id"]) "default"))
+
+(defn- request->command [request body]
   {:customer-id (:customerId request)
+   :merchant-id (merchant-id body)
    :amount (:amount request)
    :currency (keyword (:currency request))
    :method (keyword "payment.method" (:method request))})
@@ -64,7 +68,7 @@
                             {:validation (me/humanize (m/explain create-payment-request body))})
           (if-let [key (idempotency-key request)]
             (let [{:keys [outcome payment]} (service/create-payment-idempotently!
-                                              dependencies (request->command body) key (request-context request))]
+                                              dependencies (request->command body request) key (request-context request))]
               (case outcome
                 :conflict (error-response 409 "idempotency_conflict"
                                           "Idempotency-Key was already used with a different request" {})
@@ -97,7 +101,7 @@
                                (if point
                                  (audit/payment-as-of (:audit dependencies) payment-id point)
                                  (repository/find-payment (:payments dependencies) payment-id)))]
-                (if payment
+                (if (and payment (= (or (:payment/merchant-id payment) "default") (merchant-id request)))
                   (json-response 200 (payment-response payment))
                   (error-response 404 "payment_not_found" "Payment was not found" {})))))))
 
@@ -105,7 +109,8 @@
   (fn [request]
     (let [payment-id (try (UUID/fromString (get-in request [:path-params :id]))
                           (catch IllegalArgumentException _ nil))]
-      (if-not (and payment-id (repository/find-payment (:payments dependencies) payment-id))
+      (if-not (let [payment (and payment-id (repository/find-payment (:payments dependencies) payment-id))]
+                (and payment (= (or (:payment/merchant-id payment) "default") (merchant-id request))) )
         (error-response 404 "payment_not_found" "Payment was not found" {})
         (json-response 200
                        {:paymentId (str payment-id)
@@ -127,7 +132,7 @@
     (let [payment-id (try (UUID/fromString (get-in request [:path-params :id]))
                           (catch IllegalArgumentException _ nil))
           payment (when payment-id (repository/find-payment (:payments dependencies) payment-id))]
-      (if payment
+      (if (and payment (= (or (:payment/merchant-id payment) "default") (merchant-id request)))
         (json-response 200 {:paymentId (str payment-id)
                             :journals (mapv (fn [journal]
                                               {:id (str (:journal/id journal))

@@ -1,6 +1,6 @@
 # Development state
 
-- Milestone: M16 — Deploy, documentation and portfolio
+- Milestone: M17 — Multi-tenant / Merchants
 - Status: COMPLETE
 - Completed: Docker Compose, CI expansion, open-source files, architecture/API/demo/release documentation, reproducibility validation, and final repository audit.
 - Remaining: None for M16.

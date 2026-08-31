@@ -6,7 +6,7 @@
            [java.util Date]))
 
 (def payment-pull-pattern
-  '[:payment/id :payment/customer-id :payment/amount :payment/currency
+  '[:payment/id :payment/merchant-id :payment/customer-id :payment/amount :payment/currency
     :payment/method :payment/status :payment/created-at])
 
 (def idempotency-pull-pattern
@@ -27,6 +27,7 @@
 (defn domain->tx [payment]
   (let [created-at (require-created-at! payment)]
     {:payment/id (:payment/id payment)
+     :payment/merchant-id (or (:payment/merchant-id payment) "default")
      :payment/customer-id (:payment/customer-id payment)
      :payment/amount (:payment/amount payment)
      :payment/currency (:payment/currency payment)

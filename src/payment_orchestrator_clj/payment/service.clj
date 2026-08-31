@@ -59,7 +59,8 @@
   "Creates a payment once per consumer key and returns :created, :replayed or :conflict."
   [{:keys [payments gateway clock id-generator] :as dependencies} command idempotency-key transaction-context]
   (let [now (clock)
-        payment (domain/new-payment (assoc command :id (id-generator) :occurred-at now))
+        payment (assoc (domain/new-payment (assoc command :id (id-generator) :occurred-at now))
+                       :payment/merchant-id (or (:merchant-id command) "default"))
         record {:idempotency/key idempotency-key
                 :idempotency/request-hash (idempotency/request-hash command)
                 :idempotency/payment-id (:payment/id payment)
