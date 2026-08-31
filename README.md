@@ -1,5 +1,25 @@
 # Payment Orchestrator in Clojure
 
+Provider-agnostic payment orchestration API built with Clojure and Datomic. It demonstrates safe payment boundaries: idempotency, provider isolation, durable webhook processing, temporal audit, double-entry accounting, reconciliation, Kafka relay, observability, and security hardening.
+
+> Status: v1.0.0 release candidate. Stripe sandbox is supported; the Asaas milestone was intentionally skipped.
+
+## Quick start with Docker
+
+```powershell
+Copy-Item .env.example .env
+# Set PAYMENT_ORCHESTRATOR_API_KEY in .env to a private local value.
+docker compose up --build
+```
+
+Create a payment in a second terminal, replacing the placeholder with the `.env` value:
+
+```powershell
+curl.exe -X POST http://localhost:8080/v1/payments -H "Authorization: Bearer <PAYMENT_ORCHESTRATOR_API_KEY>" -H "Content-Type: application/json" -H "Idempotency-Key: demo-payment-001" -d '{"customerId":"cust-demo","amount":12990,"currency":"BRL","method":"card"}'
+```
+
+See [API.md](docs/API.md), [ARCHITECTURE.md](docs/ARCHITECTURE.md), [DEMO.md](docs/DEMO.md), [PERFORMANCE.md](docs/PERFORMANCE.md), and [SECURITY.md](SECURITY.md).
+
 Payment Orchestrator in Clojure is an open-source provider-agnostic payment orchestration platform built with Clojure and Datomic. A API HTTP, Datomic Local, and the M5 Fake Provider are available for local validation.
 
 ## Pré-requisitos
@@ -13,11 +33,7 @@ Payment Orchestrator in Clojure is an open-source provider-agnostic payment orch
 clojure -M -m payment-orchestrator-clj.core
 ```
 
-Saída esperada:
-
-```text
-Payment Orchestrator in Clojure bootstrap ready: #:payment-orchestrator-clj{:service-name payment-orchestrator-clj, :environment :development}
-```
+O bootstrap registra o serviço e inicia Jetty na porta 8080.
 
 ## Testes
 
@@ -147,6 +163,12 @@ Rode a suíte de integração separada:
 docker run --rm -v "${PWD}:/workspace" -w /workspace clojure:temurin-21-tools-deps clojure -M:test-integration
 ```
 
-## Roadmap
+## Documentation
 
-Leia [00-START-HERE.md](docs/roadmap/00-START-HERE.md) e [01-ROADMAP.md](docs/roadmap/01-ROADMAP.md) antes de iniciar uma etapa. A implementação segue um milestone por vez; o próximo só começa após validação do anterior.
+- [Architecture](docs/ARCHITECTURE.md)
+- [API](docs/API.md)
+- [Demo and recording checklist](docs/DEMO.md)
+- [Performance profile](docs/PERFORMANCE.md)
+- [Security policy](SECURITY.md)
+- [Contributing](CONTRIBUTING.md)
+- [v1.0.0 release notes](docs/RELEASE-NOTES-v1.0.0.md)

@@ -13,3 +13,4 @@ jobs:
         with:
           cli: 1.12.0.1530
       - run: clojure -M:test
+      - run: clojure -M:test-integration

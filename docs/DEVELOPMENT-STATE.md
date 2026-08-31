@@ -1,8 +1,8 @@
 # Development state
 
-- Milestone: M15 — Performance e resiliência
+- Milestone: M16 — Deploy, documentation and portfolio
 - Status: COMPLETE
-- Completed: generated dataset, load runner, p50/p95/p99/error-rate measurements, webhook burst, provider latency scenario, resilience documentation, and performance tests.
-- Remaining: None for M15.
-- Last tests: M15 profile executed with 30 operations and 100 webhook events; unit suite passed (53 tests, 144 assertions); integration suite passed (14 tests, 48 assertions).
-- Next action: Await explicit authorization before starting M16.
+- Completed: Docker Compose, CI expansion, open-source files, architecture/API/demo/release documentation, reproducibility validation, and final repository audit.
+- Remaining: None for M16.
+- Last tests: Unit suite passed (53 tests, 144 assertions); integration suite passed (14 tests, 48 assertions); `docker compose config` passed.
+- Next action: Await explicit authorization before any post-v1.0.0 work.
