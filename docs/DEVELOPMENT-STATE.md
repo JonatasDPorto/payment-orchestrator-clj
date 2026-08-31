@@ -1,8 +1,8 @@
 # Development state
 
-- Milestone: M17 — Multi-tenant / Merchants
+- Milestone: M18 — Routing Strategy
 - Status: COMPLETE
-- Completed: Docker Compose, CI expansion, open-source files, architecture/API/demo/release documentation, reproducibility validation, and final repository audit.
-- Remaining: None for M16.
-- Last tests: Unit suite passed (53 tests, 144 assertions); integration suite passed (14 tests, 48 assertions); `docker compose config` passed.
-- Next action: Await explicit authorization before any post-v1.0.0 work.
+- Completed: Pure provider selection by merchant, currency, payment method, default, availability, and lowest cost; runtime gateway catalog; safe no-fallback behavior; routing error metric; regression tests; and ADR-0013/documentation.
+- Remaining: None for M18.
+- Last tests: Unit suite passed (57 tests, 155 assertions); integration suite passed (15 tests, 53 assertions).
+- Next action: Await explicit authorization before M19.

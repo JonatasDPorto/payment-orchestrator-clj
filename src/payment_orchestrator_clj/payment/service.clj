@@ -6,7 +6,8 @@
             [payment-orchestrator-clj.ledger.service :as ledger]
             [payment-orchestrator-clj.reconciliation.repository :as operations]
             [payment-orchestrator-clj.observability.metrics :as metrics]
-            [payment-orchestrator-clj.provider.port :as provider]))
+            [payment-orchestrator-clj.provider.port :as provider]
+            [payment-orchestrator-clj.provider.routing :as routing]))
 
 (defn create-payment!
   "Creates and persists a payment using injected time and ID generators."
@@ -46,21 +47,42 @@
    :customer {:reference (:payment/customer-id payment)}
    :idempotency-key idempotency-key})
 
-(defn- operation [payment command now]
+(defn- operation [payment command now provider-id]
   {:provider-operation/id (:operation/id command)
    :provider-operation/payment (:payment/id payment)
-   :provider-operation/provider :provider/unknown
+   :provider-operation/provider provider-id
    :provider-operation/type :provider-operation.type/create
    :provider-operation/idempotency-key (:idempotency-key command)
    :provider-operation/status :provider-operation.status/started
    :provider-operation/started-at now})
 
+(defn- gateway-for
+  "Uses routing when a provider catalog is supplied, while retaining the injected
+  single gateway boundary used by existing tests and non-routed compositions."
+  [{:keys [gateway providers routing]} payment]
+  (if (seq providers)
+    (routing/select-provider {:merchant-id (:payment/merchant-id payment)
+                              :currency (:payment/currency payment)
+                              :method (:payment/method payment)
+                              :routing routing}
+                             providers)
+    {:provider :provider/unknown :gateway gateway}))
+
+(defn- routed-gateway-for [dependencies payment]
+  (try
+    (gateway-for dependencies payment)
+    (catch clojure.lang.ExceptionInfo error
+      (when (and (:metrics dependencies) (:provider/error? (ex-data error)))
+        (metrics/inc! (:metrics dependencies) "provider_routing_errors_total"))
+      (throw error))))
+
 (defn create-payment-idempotently!
   "Creates a payment once per consumer key and returns :created, :replayed or :conflict."
-  [{:keys [payments gateway clock id-generator] :as dependencies} command idempotency-key transaction-context]
+  [{:keys [payments clock id-generator] :as dependencies} command idempotency-key transaction-context]
   (let [now (clock)
         payment (assoc (domain/new-payment (assoc command :id (id-generator) :occurred-at now))
                        :payment/merchant-id (or (:merchant-id command) "default"))
+        {:keys [provider gateway]} (routed-gateway-for dependencies payment)
         record {:idempotency/key idempotency-key
                 :idempotency/request-hash (idempotency/request-hash command)
                 :idempotency/payment-id (:payment/id payment)
@@ -72,7 +94,7 @@
         (when-let [registry (:metrics dependencies)] (metrics/inc! registry "payment_create_total"))
         (try
           (let [_ (when-let [operation-repository (:operations dependencies)]
-                  (operations/start-operation! operation-repository (operation payment operation-command now)
+                  (operations/start-operation! operation-repository (operation payment operation-command now provider)
                                              (assoc transaction-context :event-type :event/provider-operation-started)))
               raw-provider-result (provider/create-payment! gateway operation-command)
               provider-result (assoc raw-provider-result :provider-payment/created-at now)

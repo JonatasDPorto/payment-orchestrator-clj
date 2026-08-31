@@ -25,22 +25,35 @@
   (update (dissoc database-config :database-name) :storage-dir
           #(if (string? %) (.getAbsolutePath (io/file %)) %)))
 
-(defn- selected-provider [gateway-config]
+(defn- configured-provider [gateway-config]
   (keyword (or (System/getenv "PAYMENT_ORCHESTRATOR_DEFAULT_PROVIDER")
                (name (:default-provider gateway-config)))))
+
+(defn- gateway-catalog [gateway-config]
+  (let [default-provider (configured-provider gateway-config)
+        routing-config (assoc (:routing gateway-config)
+                              :default-provider default-provider)
+        fake-config (:fake gateway-config)
+        stripe-config (:stripe gateway-config)]
+    {:routing routing-config
+     :providers (cond-> []
+                  (or (:enabled fake-config) (= :fake default-provider))
+                  (conj {:provider :fake
+                         :gateway (fake/new-gateway fake-config)
+                         :capabilities #{:payment/create :payment/fetch :payment/refund :payment/cancel :method/card}
+                         :cost (:cost fake-config 0)})
+                  (or (:enabled stripe-config) (= :stripe default-provider))
+                  (conj {:provider :stripe
+                         :gateway (stripe/new-gateway (assoc stripe-config :environment (System/getenv)))
+                         :capabilities #{:payment/create :payment/fetch :payment/refund :payment/cancel :method/card}
+                         :cost (:cost stripe-config 0)}))}))
 
 (defn application-dependencies [application-config]
   (let [database-config (:database application-config)
         client (datomic-client/new-client (normalize-client-config database-config))
         connection (datomic-client/create-connection! client (:database-name database-config))
         gateway-config (:payments application-config)
-        provider (selected-provider gateway-config)
-        gateway (case provider
-                  :fake (fake/new-gateway (:fake gateway-config))
-                  :stripe (stripe/new-gateway (assoc (:stripe gateway-config)
-                                                     :environment (System/getenv)))
-                  (throw (ex-info "Unsupported payment provider"
-                                  {:provider provider})))]
+        catalog (gateway-catalog gateway-config)]
     (schema/install! connection)
     (let [ledger-repository (ledger-repository/new-repository connection)]
       (ledger/ensure-accounts! ledger-repository)
@@ -49,7 +62,8 @@
      :operations (reconciliation-repository/new-repository connection)
      :provider-events (webhook-repository/new-repository connection)
      :ledger ledger-repository
-     :gateway gateway
+     :providers (:providers catalog)
+     :routing (:routing catalog)
      :metrics (metrics/registry)
      :clock #(Instant/now)
      :id-generator #(UUID/randomUUID)

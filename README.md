@@ -15,7 +15,7 @@ docker compose up --build
 Create a payment in a second terminal, replacing the placeholder with the `.env` value:
 
 ```powershell
-curl.exe -X POST http://localhost:8080/v1/payments -H "Authorization: Bearer <PAYMENT_ORCHESTRATOR_API_KEY>" -H "Content-Type: application/json" -H "Idempotency-Key: demo-payment-001" -d '{"customerId":"cust-demo","amount":12990,"currency":"BRL","method":"card"}'
+curl.exe -X POST http://localhost:8080/v1/payments -H "Authorization: Bearer <PAYMENT_ORCHESTRATOR_API_KEY>" -H "X-Merchant-Id: demo-merchant" -H "Content-Type: application/json" -H "Idempotency-Key: demo-payment-001" -d '{"customerId":"cust-demo","amount":12990,"currency":"BRL","method":"card"}'
 ```
 
 See [API.md](docs/API.md), [ARCHITECTURE.md](docs/ARCHITECTURE.md), [DEMO.md](docs/DEMO.md), [PERFORMANCE.md](docs/PERFORMANCE.md), and [SECURITY.md](SECURITY.md).
@@ -129,6 +129,10 @@ Para validar apenas a entrega do endpoint com um evento independente, use:
 ```powershell
 stripe trigger payment_intent.succeeded
 ```
+
+## Provider routing (M18)
+
+Provider selection remains internal to the API. The pure routing policy supports default, merchant, currency, payment-method, availability, and lowest-cost choices from the configured gateway catalog. The public request never exposes provider-specific fields. A route whose chosen provider is unavailable fails safely; it is never retried through another provider, preventing an ambiguous operation from creating a duplicate charge. See [MULTI-TENANCY.md](docs/MULTI-TENANCY.md) for the local configuration contract.
 
 ## REPL de desenvolvimento
 
