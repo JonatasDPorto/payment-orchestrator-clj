@@ -16,7 +16,8 @@
             [payment-orchestrator-clj.provider.stripe.adapter :as stripe]
             [payment-orchestrator-clj.webhook.datomic-repository :as webhook-repository]
             [payment-orchestrator-clj.webhook.service :as webhook-service]
-            [payment-orchestrator-clj.observability.metrics :as metrics])
+            [payment-orchestrator-clj.observability.metrics :as metrics]
+            [payment-orchestrator-clj.security :as security])
   (:import [java.time Instant]
            [java.util UUID]))
 
@@ -53,6 +54,9 @@
      :clock #(Instant/now)
      :id-generator #(UUID/randomUUID)
      :stripe-webhook-secret (System/getenv "STRIPE_WEBHOOK_SECRET")
+     :api-key (security/required-api-key (System/getenv "PAYMENT_ORCHESTRATOR_API_KEY"))
+     :rate-limiter (security/new-rate-limiter {:limit 60 :window-ms 60000})
+     :max-request-body-bytes 1048576
      :dispatcher webhook-service/dispatch!})))
 
 (defn start! []

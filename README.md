@@ -46,13 +46,13 @@ O projeto usa `slf4j-simple` com timestamp, thread, logger e nível `INFO`. O bo
 Inicie a API em `http://localhost:8080`:
 
 ```powershell
-docker run --rm -p 8080:8080 -v "${PWD}:/workspace" -w /workspace clojure:temurin-21-tools-deps clojure -M -m payment-orchestrator-clj.core
+docker run --rm -p 8080:8080 --env-file .env -v "${PWD}:/workspace" -w /workspace clojure:temurin-21-tools-deps clojure -M -m payment-orchestrator-clj.core
 ```
 
-Em outro terminal:
+Em outro terminal, defina `PAYMENT_ORCHESTRATOR_API_KEY` no `.env` e envie-a como Bearer token:
 
 ```powershell
-curl.exe -X POST http://localhost:8080/v1/payments -H "Content-Type: application/json" -H "Idempotency-Key: demo-payment-001" -d '{"customerId":"cust-123","amount":12990,"currency":"BRL","method":"card"}'
+curl.exe -X POST http://localhost:8080/v1/payments -H "Authorization: Bearer <PAYMENT_ORCHESTRATOR_API_KEY>" -H "Content-Type: application/json" -H "Idempotency-Key: demo-payment-001" -d '{"customerId":"cust-123","amount":12990,"currency":"BRL","method":"card"}'
 ```
 
 ## Idempotência da API (M4)
@@ -60,7 +60,7 @@ curl.exe -X POST http://localhost:8080/v1/payments -H "Content-Type: application
 `POST /v1/payments` exige uma chave de idempotência. Repetir a mesma chave com o mesmo payload retorna o pagamento original; payload diferente retorna `409`.
 
 ```powershell
-curl.exe -X POST http://localhost:8080/v1/payments -H "Content-Type: application/json" -H "Idempotency-Key: demo-payment-001" -d '{"customerId":"cust-123","amount":12990,"currency":"BRL","method":"card"}'
+curl.exe -X POST http://localhost:8080/v1/payments -H "Authorization: Bearer <PAYMENT_ORCHESTRATOR_API_KEY>" -H "Content-Type: application/json" -H "Idempotency-Key: demo-payment-001" -d '{"customerId":"cust-123","amount":12990,"currency":"BRL","method":"card"}'
 ```
 
 ## Payment Gateway Port (M5)

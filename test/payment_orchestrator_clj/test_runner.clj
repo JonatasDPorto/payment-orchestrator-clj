@@ -11,6 +11,7 @@
             [payment-orchestrator-clj.provider.stripe-adapter-test]
             [payment-orchestrator-clj.provider.stripe-errors-test]
             [payment-orchestrator-clj.provider.stripe-mapper-test]
+            [payment-orchestrator-clj.security-test]
             [payment-orchestrator-clj.webhook-test]))
 
 (def test-namespaces
@@ -25,6 +26,7 @@
    'payment-orchestrator-clj.provider.stripe-adapter-test
    'payment-orchestrator-clj.provider.stripe-errors-test
    'payment-orchestrator-clj.provider.stripe-mapper-test
+   'payment-orchestrator-clj.security-test
    'payment-orchestrator-clj.webhook-test])
 
 (defn -main [& _]
