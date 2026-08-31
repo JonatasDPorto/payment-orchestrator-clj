@@ -5,6 +5,7 @@
             [malli.core :as m]
             [malli.error :as me]
             [payment-orchestrator-clj.payment.repository :as repository]
+            [payment-orchestrator-clj.ledger.repository :as ledger]
             [payment-orchestrator-clj.payment.service :as service])
   (:import [java.util UUID]))
 
@@ -81,4 +82,24 @@
           payment (when payment-id (repository/find-payment (:payments dependencies) payment-id))]
       (if payment
         (json-response 200 (payment-response payment))
+        (error-response 404 "payment_not_found" "Payment was not found" {})))))
+
+(defn payment-ledger-handler [dependencies]
+  (fn [request]
+    (let [payment-id (try (UUID/fromString (get-in request [:path-params :id]))
+                          (catch IllegalArgumentException _ nil))
+          payment (when payment-id (repository/find-payment (:payments dependencies) payment-id))]
+      (if payment
+        (json-response 200 {:paymentId (str payment-id)
+                            :journals (mapv (fn [journal]
+                                              {:id (str (:journal/id journal))
+                                               :type (name (:journal/type journal))
+                                               :postings (mapv (fn [posting]
+                                                                 {:id (str (:posting/id posting))
+                                                                  :account (get-in posting [:posting/account :ledger-account/code])
+                                                                  :side (name (:posting/side posting))
+                                                                  :amount (:posting/amount posting)
+                                                                  :currency (name (:posting/currency posting))})
+                                                               (:journal/postings journal))})
+                                            (ledger/payment-journals (:ledger dependencies) payment-id))})
         (error-response 404 "payment_not_found" "Payment was not found" {})))))

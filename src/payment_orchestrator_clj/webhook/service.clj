@@ -1,5 +1,6 @@
 (ns payment-orchestrator-clj.webhook.service
   (:require [payment-orchestrator-clj.payment.domain :as domain]
+            [payment-orchestrator-clj.ledger.service :as ledger]
             [payment-orchestrator-clj.payment.repository :as payments]
             [payment-orchestrator-clj.provider.stripe.webhook :as stripe]
             [payment-orchestrator-clj.webhook.repository :as events])
@@ -21,7 +22,7 @@
                             :provider-event/received-at (clock))
                      {:source :source/webhook})))
 
-(defn- apply-event! [{:keys [provider-events payments clock]} event]
+(defn- apply-event! [{:keys [provider-events payments clock id-generator ledger] :as dependencies} event]
   (let [event-id (:provider-event/id event)
         context (transaction-context event-id)
         target-status (stripe/canonical-payment-status (:provider-event/type event))]
@@ -35,6 +36,8 @@
                               (domain/transition payment target-status (clock)))]
                 (when-not (= payment updated)
                   (payments/save-payment! payments updated context))
+                (ledger/record-payment-settlement! {:ledger ledger :clock clock :id-generator id-generator}
+                                                   updated context)
                 (events/mark-processed! provider-events event-id (:payment/id payment) context))
               (events/record-processing-error! provider-events event-id "payment_not_found" context)))))
 

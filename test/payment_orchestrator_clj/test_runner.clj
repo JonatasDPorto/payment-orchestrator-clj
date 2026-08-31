@@ -4,6 +4,7 @@
             [payment-orchestrator-clj.config-test]
             [payment-orchestrator-clj.core-test]
             [payment-orchestrator-clj.logging-test]
+            [payment-orchestrator-clj.ledger.domain-test]
             [payment-orchestrator-clj.payment.domain-test]
             [payment-orchestrator-clj.provider.contract-test]
             [payment-orchestrator-clj.provider.stripe-adapter-test]
@@ -16,6 +17,7 @@
    'payment-orchestrator-clj.config-test
    'payment-orchestrator-clj.core-test
    'payment-orchestrator-clj.logging-test
+   'payment-orchestrator-clj.ledger.domain-test
    'payment-orchestrator-clj.payment.domain-test
    'payment-orchestrator-clj.provider.contract-test
    'payment-orchestrator-clj.provider.stripe-adapter-test

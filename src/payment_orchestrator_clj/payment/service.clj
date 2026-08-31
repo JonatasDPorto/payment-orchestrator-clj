@@ -3,6 +3,7 @@
   (:require [payment-orchestrator-clj.payment.domain :as domain]
             [payment-orchestrator-clj.payment.idempotency :as idempotency]
             [payment-orchestrator-clj.payment.repository :as repository]
+            [payment-orchestrator-clj.ledger.service :as ledger]
             [payment-orchestrator-clj.provider.port :as provider]))
 
 (defn create-payment!
@@ -45,7 +46,7 @@
 
 (defn create-payment-idempotently!
   "Creates a payment once per consumer key and returns :created, :replayed or :conflict."
-  [{:keys [payments gateway clock id-generator]} command idempotency-key transaction-context]
+  [{:keys [payments gateway clock id-generator] :as dependencies} command idempotency-key transaction-context]
   (let [now (clock)
         payment (domain/new-payment (assoc command :id (id-generator) :occurred-at now))
         record {:idempotency/key idempotency-key
@@ -59,9 +60,10 @@
         (let [raw-provider-result (provider/create-payment! gateway (provider-command payment idempotency-key))
               provider-result (assoc raw-provider-result :provider-payment/created-at now)
               updated (apply-provider-result payment provider-result now)]
-          {:outcome :created
-           :payment (repository/record-provider-result! payments updated provider-result transaction-context)
-           :provider-result provider-result})
+          (let [stored (repository/record-provider-result! payments updated provider-result transaction-context)]
+            (ledger/record-payment-settlement! {:ledger (:ledger dependencies) :clock clock :id-generator id-generator}
+                                               stored transaction-context)
+            {:outcome :created :payment stored :provider-result provider-result}))
         (catch clojure.lang.ExceptionInfo error
           (if (and (:provider/error? (ex-data error))
                    (:outcome-known? (ex-data error)))
