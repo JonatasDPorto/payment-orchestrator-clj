@@ -7,6 +7,7 @@
             [payment-orchestrator-clj.datomic.client :as datomic-client]
             [payment-orchestrator-clj.datomic.schema :as schema]
             [payment-orchestrator-clj.payment.datomic-repository :as datomic-repository]
+            [payment-orchestrator-clj.audit.datomic-repository :as audit-repository]
             [payment-orchestrator-clj.ledger.datomic-repository :as ledger-repository]
             [payment-orchestrator-clj.ledger.repository :as ledger]
             [payment-orchestrator-clj.provider.fake :as fake]
@@ -40,6 +41,7 @@
     (let [ledger-repository (ledger-repository/new-repository connection)]
       (ledger/ensure-accounts! ledger-repository)
       {:payments (datomic-repository/new-repository connection)
+     :audit (audit-repository/new-repository connection)
      :provider-events (webhook-repository/new-repository connection)
      :ledger ledger-repository
      :gateway gateway

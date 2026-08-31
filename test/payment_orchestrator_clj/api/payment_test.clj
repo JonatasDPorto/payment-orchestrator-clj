@@ -2,6 +2,7 @@
   (:require [clojure.data.json :as json]
             [clojure.test :refer [deftest is]]
             [payment-orchestrator-clj.api.routes :as routes]
+            [payment-orchestrator-clj.audit.repository :as audit]
             [payment-orchestrator-clj.provider.fake :as fake]
             [payment-orchestrator-clj.payment.repository :as repository])
   (:import [java.io ByteArrayInputStream]
@@ -32,8 +33,14 @@
   (find-payment [_ payment-id]
     (get @payments payment-id)))
 
+(defrecord InMemoryAudit [as-of history]
+  audit/PaymentAuditRepository
+  (payment-as-of [_ payment-id _] (get @as-of payment-id))
+  (payment-history [_ payment-id] (get @history payment-id [])))
+
 (defn- api []
   (routes/handler {:payments (->InMemoryPayments (atom {}) (atom {}))
+                   :audit (->InMemoryAudit (atom {}) (atom {}))
                    :gateway (fake/new-gateway {:mode :always-success})
                    :clock #(Instant/parse "2026-08-30T12:00:00Z")
                    :id-generator #(UUID/fromString "fc1b6fa6-1ed5-4211-a9fd-fb4e1dfefa0d")}))
@@ -68,6 +75,14 @@
   (let [response ((api) (request :get "/v1/payments/fc1b6fa6-1ed5-4211-a9fd-fb4e1dfefa0d" ""))]
     (is (= 404 (:status response)))
     (is (= "payment_not_found" (get-in (response-body response) [:error :code])))))
+
+(deftest invalid-as-of-is-rejected-without-changing-the-current-contract
+  (let [response ((api) {:request-method :get
+                          :uri "/v1/payments/fc1b6fa6-1ed5-4211-a9fd-fb4e1dfefa0d"
+                          :query-params {"asOf" "not-a-temporal-point"}
+                          :headers {} :body (ByteArrayInputStream. (byte-array 0))})]
+    (is (= 400 (:status response)))
+    (is (= "invalid_as_of" (get-in (response-body response) [:error :code])))))
 
 (deftest invalid-payment-request-returns-bad-request
   (let [response ((api) (request :post "/v1/payments"

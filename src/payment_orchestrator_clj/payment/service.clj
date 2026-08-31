@@ -60,14 +60,17 @@
         (let [raw-provider-result (provider/create-payment! gateway (provider-command payment idempotency-key))
               provider-result (assoc raw-provider-result :provider-payment/created-at now)
               updated (apply-provider-result payment provider-result now)]
-          (let [stored (repository/record-provider-result! payments updated provider-result transaction-context)]
+          (let [provider-context (assoc transaction-context :reason :reason/provider-result
+                                        :event-type :event/payment-provider-result)
+                stored (repository/record-provider-result! payments updated provider-result provider-context)]
             (ledger/record-payment-settlement! {:ledger (:ledger dependencies) :clock clock :id-generator id-generator}
-                                               stored transaction-context)
+                                               stored provider-context)
             {:outcome :created :payment stored :provider-result provider-result}))
         (catch clojure.lang.ExceptionInfo error
           (if (and (:provider/error? (ex-data error))
                    (:outcome-known? (ex-data error)))
             (let [failed (domain/transition (to-processing payment now) :payment.status/failed now)]
-              (repository/save-payment! payments failed transaction-context))
+              (repository/save-payment! payments failed (assoc transaction-context :reason :reason/provider-error
+                                                                :event-type :event/payment-provider-error)))
             nil)
           (throw error))))))

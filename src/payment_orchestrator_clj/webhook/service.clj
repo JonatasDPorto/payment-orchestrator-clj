@@ -8,7 +8,9 @@
            [java.util UUID]))
 
 (defn- transaction-context [event-id]
-  {:source :source/webhook :request-id (str event-id) :correlation-id (str event-id)})
+  {:source :source/webhook :actor :actor/provider-webhook
+   :reason :reason/provider-webhook :event-type :event/provider-webhook
+   :request-id (str event-id) :correlation-id (str event-id)})
 
 (defn enqueue-stripe-event! [{:keys [provider-events clock id-generator]} raw-body]
   (let [{:provider-event/keys [external-id] :as event} (stripe/parse-event raw-body)]
@@ -35,7 +37,8 @@
                               payment
                               (domain/transition payment target-status (clock)))]
                 (when-not (= payment updated)
-                  (payments/save-payment! payments updated context))
+                  (payments/save-payment! payments updated (assoc context :reason :reason/provider-status-update
+                                                                   :event-type :event/payment-status-changed)))
                 (ledger/record-payment-settlement! {:ledger ledger :clock clock :id-generator id-generator}
                                                    updated context)
                 (events/mark-processed! provider-events event-id (:payment/id payment) context))

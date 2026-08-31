@@ -10,11 +10,14 @@
     :provider-event/type :provider-event/status :provider-event/payload-sha256
     :provider-event/provider-reference :provider-event/received-at :provider-event/error])
 
-(defn- transaction-metadata [{:keys [request-id correlation-id source]}]
+(defn- transaction-metadata [{:keys [request-id correlation-id actor source reason event-type]}]
   (cond-> {:db/id "datomic.tx"}
     request-id (assoc :tx/request-id request-id)
     correlation-id (assoc :tx/correlation-id correlation-id)
-    source (assoc :tx/source source)))
+    actor (assoc :tx/actor actor)
+    source (assoc :tx/source source)
+    reason (assoc :tx/reason reason)
+    event-type (assoc :tx/event-type event-type)))
 
 (defn- datomic->event [event]
   (when event

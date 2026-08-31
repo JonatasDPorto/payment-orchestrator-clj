@@ -13,7 +13,10 @@
   (cond-> {:db/id "datomic.tx"}
     (:request-id context) (assoc :tx/request-id (:request-id context))
     (:correlation-id context) (assoc :tx/correlation-id (:correlation-id context))
-    (:source context) (assoc :tx/source (:source context))))
+    (:actor context) (assoc :tx/actor (:actor context))
+    (:source context) (assoc :tx/source (:source context))
+    (:reason context) (assoc :tx/reason (:reason context))
+    (:event-type context) (assoc :tx/event-type (:event-type context))))
 
 (defn- datomic->journal [journal]
   (-> journal

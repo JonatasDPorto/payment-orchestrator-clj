@@ -7,6 +7,7 @@
   (ring/ring-handler
    (ring/router
      [["/v1/payments" {:post {:handler (payment/create-payment-handler dependencies)}}]
+     ["/v1/payments/:id/history" {:get {:handler (payment/payment-history-handler dependencies)}}]
      ["/v1/payments/:id/ledger" {:get {:handler (payment/payment-ledger-handler dependencies)}}]
      ["/v1/payments/:id" {:get {:handler (payment/find-payment-handler dependencies)}}]
      ["/webhooks/stripe" {:post {:handler (webhook/stripe-handler dependencies)}}]])
