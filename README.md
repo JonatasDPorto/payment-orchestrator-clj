@@ -74,6 +74,28 @@ docker run --rm -v "${PWD}:/workspace" -w /workspace clojure:temurin-21-tools-de
 docker run --rm -v "${PWD}:/workspace" -w /workspace clojure:temurin-21-tools-deps clojure -M:test-integration
 ```
 
+## Stripe Sandbox Adapter (M6)
+
+O Stripe é opcional e permanece isolado em `provider/stripe/`. Para executar o teste sandbox, use uma chave de teste e um payment method de teste somente no ambiente local; nunca grave esses valores em arquivos versionados.
+
+Crie seu arquivo local a partir do exemplo:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Edite `.env` e informe sua `STRIPE_SECRET_KEY` de sandbox. O `.env` é ignorado pelo Git; `.env.example` não contém credenciais reais e é versionado.
+
+```powershell
+docker run --rm --env-file .env -v "${PWD}:/workspace" -w /workspace clojure:temurin-21-tools-deps clojure -M:test-stripe-sandbox
+```
+
+Para iniciar a API com Stripe, defina as mesmas variáveis e selecione o provider por ambiente (o padrão permanece Fake Provider):
+
+```powershell
+docker run --rm -p 8080:8080 --env-file .env -v "${PWD}:/workspace" -w /workspace clojure:temurin-21-tools-deps clojure -M -m payment-orchestrator-clj.core
+```
+
 ## REPL de desenvolvimento
 
 ```bash

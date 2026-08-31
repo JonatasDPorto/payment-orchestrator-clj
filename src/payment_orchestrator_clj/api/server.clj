@@ -7,7 +7,8 @@
             [payment-orchestrator-clj.datomic.client :as datomic-client]
             [payment-orchestrator-clj.datomic.schema :as schema]
             [payment-orchestrator-clj.payment.datomic-repository :as datomic-repository]
-            [payment-orchestrator-clj.provider.fake :as fake])
+            [payment-orchestrator-clj.provider.fake :as fake]
+            [payment-orchestrator-clj.provider.stripe.adapter :as stripe])
   (:import [java.time Instant]
            [java.util UUID]))
 
@@ -15,13 +16,25 @@
   (update (dissoc database-config :database-name) :storage-dir
           #(if (string? %) (.getAbsolutePath (io/file %)) %)))
 
+(defn- selected-provider [gateway-config]
+  (keyword (or (System/getenv "PAYMENT_ORCHESTRATOR_DEFAULT_PROVIDER")
+               (name (:default-provider gateway-config)))))
+
 (defn application-dependencies [application-config]
   (let [database-config (:database application-config)
         client (datomic-client/new-client (normalize-client-config database-config))
-        connection (datomic-client/create-connection! client (:database-name database-config))]
+        connection (datomic-client/create-connection! client (:database-name database-config))
+        gateway-config (:payments application-config)
+        provider (selected-provider gateway-config)
+        gateway (case provider
+                  :fake (fake/new-gateway (:fake gateway-config))
+                  :stripe (stripe/new-gateway (assoc (:stripe gateway-config)
+                                                     :environment (System/getenv)))
+                  (throw (ex-info "Unsupported payment provider"
+                                  {:provider provider})))]
     (schema/install! connection)
     {:payments (datomic-repository/new-repository connection)
-     :gateway (fake/new-gateway (get-in application-config [:payments :fake]))
+     :gateway gateway
      :clock #(Instant/now)
      :id-generator #(UUID/randomUUID)}))
 

@@ -14,4 +14,6 @@
          :extra-deps {org.clojure/test.check {:mvn/version "1.1.1"}}
          :main-opts ["-m" "payment-orchestrator-clj.test-runner"]}
   :test-integration {:extra-paths ["test"]
-                     :main-opts ["-m" "payment-orchestrator-clj.integration-test-runner"]}}}
+                     :main-opts ["-m" "payment-orchestrator-clj.integration-test-runner"]}
+  :test-stripe-sandbox {:extra-paths ["test"]
+                        :main-opts ["-m" "payment-orchestrator-clj.stripe-sandbox-test-runner"]}}}

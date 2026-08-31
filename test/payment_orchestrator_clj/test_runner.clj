@@ -5,7 +5,10 @@
             [payment-orchestrator-clj.core-test]
             [payment-orchestrator-clj.logging-test]
             [payment-orchestrator-clj.payment.domain-test]
-            [payment-orchestrator-clj.provider.contract-test]))
+            [payment-orchestrator-clj.provider.contract-test]
+            [payment-orchestrator-clj.provider.stripe-adapter-test]
+            [payment-orchestrator-clj.provider.stripe-errors-test]
+            [payment-orchestrator-clj.provider.stripe-mapper-test]))
 
 (def test-namespaces
   ['payment-orchestrator-clj.api.payment-test
@@ -13,7 +16,10 @@
    'payment-orchestrator-clj.core-test
    'payment-orchestrator-clj.logging-test
    'payment-orchestrator-clj.payment.domain-test
-   'payment-orchestrator-clj.provider.contract-test])
+   'payment-orchestrator-clj.provider.contract-test
+   'payment-orchestrator-clj.provider.stripe-adapter-test
+   'payment-orchestrator-clj.provider.stripe-errors-test
+   'payment-orchestrator-clj.provider.stripe-mapper-test])
 
 (defn -main [& _]
   (let [{:keys [fail error]} (apply test/run-tests test-namespaces)]

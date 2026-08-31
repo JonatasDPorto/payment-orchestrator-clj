@@ -10,12 +10,18 @@
       (let [created (port/create-payment! gateway command)]
         (is (some? (:provider-payment/reference created)))
         (is (contains? port/provider-statuses (:provider-payment/status created)))
-        (is (= created (port/fetch-payment gateway (:provider-payment/reference created))))))
-    (testing "cancel and refund return canonical statuses"
+        (let [fetched (port/fetch-payment gateway (:provider-payment/reference created))]
+          (is (= (:provider-payment/reference created) (:provider-payment/reference fetched)))
+          (is (= (:provider-payment/status created) (:provider-payment/status fetched))))))
+    (let [mutation-command (assoc command
+                                  :operation/id (java.util.UUID/randomUUID)
+                                  :provider-payment/reference (:provider-payment/reference
+                                                               (port/create-payment! gateway command)))]
+      (testing "cancel and refund return canonical statuses"
       (is (= :provider.status/cancelled
-             (:provider-payment/status (port/cancel-payment! gateway command))))
+             (:provider-payment/status (port/cancel-payment! gateway mutation-command))))
       (is (= :provider.status/succeeded
-             (:provider-payment/status (port/refund-payment! gateway command)))))))
+             (:provider-payment/status (port/refund-payment! gateway mutation-command))))))))
 
 (deftest fake-success-contract
   (run-contract (fake/new-gateway {:mode :always-success})))

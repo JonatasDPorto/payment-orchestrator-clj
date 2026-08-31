@@ -1,0 +1,4 @@
+{:status 200
+ :request-id "req_succeeded"
+ :body {:id "pi_succeeded"
+        :status "succeeded"}}

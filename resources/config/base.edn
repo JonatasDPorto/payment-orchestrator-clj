@@ -2,7 +2,10 @@
  :payment-orchestrator-clj/environment :development
  :http {:port 8080}
  :payments {:default-provider :fake
-            :fake {:mode :always-success}}
+            :fake {:mode :always-success}
+            :stripe {:secret-key-env "STRIPE_SECRET_KEY"
+                     :payment-method-env "STRIPE_TEST_PAYMENT_METHOD"
+                     :timeout-ms 10000}}
  :database {:server-type :datomic-local
             :system "payment-orchestrator-clj-dev"
             :storage-dir "data/datomic"
