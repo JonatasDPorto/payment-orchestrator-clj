@@ -1,0 +1,9 @@
+{:payment-orchestrator-clj/service-name "payment-orchestrator-clj"
+ :payment-orchestrator-clj/environment :development
+ :http {:port 8080}
+ :payments {:default-provider :fake
+            :fake {:mode :always-success}}
+ :database {:server-type :datomic-local
+            :system "payment-orchestrator-clj-dev"
+            :storage-dir "data/datomic"
+            :database-name "payment-orchestrator-clj"}}

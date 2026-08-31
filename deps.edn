@@ -1,0 +1,17 @@
+{:paths ["src" "resources"]
+
+ :deps {org.clojure/clojure {:mvn/version "1.12.0"}
+        com.datomic/local {:mvn/version "1.0.301"}
+        metosin/malli {:mvn/version "0.19.1"}
+        metosin/reitit-ring {:mvn/version "0.9.1"}
+        org.clojure/data.json {:mvn/version "2.5.1"}
+        org.slf4j/slf4j-simple {:mvn/version "2.0.16"}
+        ring/ring-jetty-adapter {:mvn/version "1.15.3"}}
+
+ :aliases
+ {:dev {:extra-paths ["dev"]}
+  :test {:extra-paths ["test"]
+         :extra-deps {org.clojure/test.check {:mvn/version "1.1.1"}}
+         :main-opts ["-m" "payment-orchestrator-clj.test-runner"]}
+  :test-integration {:extra-paths ["test"]
+                     :main-opts ["-m" "payment-orchestrator-clj.integration-test-runner"]}}}

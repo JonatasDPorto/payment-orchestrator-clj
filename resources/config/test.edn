@@ -1,0 +1,4 @@
+{:database
+ {:server-type :datomic-local
+  :system "payment-orchestrator-clj-test"
+  :storage-dir :mem}}

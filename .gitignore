@@ -1,0 +1,15 @@
+.cpcache/
+.calva/
+.clj-kondo/.cache/
+.lsp/
+.nrepl-port
+.cider-repl-history
+.classpath
+.project
+.settings/
+target/
+data/
+.env
+.env.*
+!.env.example
+.DS_Store

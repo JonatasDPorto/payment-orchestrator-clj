@@ -1,0 +1,35 @@
+(ns payment-orchestrator-clj.datomic.schema.v001)
+
+(def schema
+  [{:db/ident :payment/id
+    :db/valueType :db.type/uuid
+    :db/cardinality :db.cardinality/one
+    :db/unique :db.unique/identity
+    :db/doc "Stable public payment identifier."}
+   {:db/ident :payment/customer-id
+    :db/valueType :db.type/string
+    :db/cardinality :db.cardinality/one}
+   {:db/ident :payment/amount
+    :db/valueType :db.type/long
+    :db/cardinality :db.cardinality/one}
+   {:db/ident :payment/currency
+    :db/valueType :db.type/keyword
+    :db/cardinality :db.cardinality/one}
+   {:db/ident :payment/method
+    :db/valueType :db.type/keyword
+    :db/cardinality :db.cardinality/one}
+   {:db/ident :payment/status
+    :db/valueType :db.type/keyword
+    :db/cardinality :db.cardinality/one}
+   {:db/ident :payment/created-at
+    :db/valueType :db.type/instant
+    :db/cardinality :db.cardinality/one}
+   {:db/ident :tx/request-id
+    :db/valueType :db.type/string
+    :db/cardinality :db.cardinality/one}
+   {:db/ident :tx/correlation-id
+    :db/valueType :db.type/string
+    :db/cardinality :db.cardinality/one}
+   {:db/ident :tx/source
+    :db/valueType :db.type/keyword
+    :db/cardinality :db.cardinality/one}])
