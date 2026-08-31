@@ -160,6 +160,10 @@ docker run --rm --env-file .env -v "${PWD}:/workspace" -w /workspace clojure:tem
 
 Stripe requires BRL and a minimum amount for Boleto; the sandbox suite uses `1000` minor units. Boleto payments cannot be refunded through Stripe.
 
+## Subscriptions (M21)
+
+Subscriptions, invoices, and payments are separate aggregates. A subscription stores the recurring agreement; an invoice records a single amount due and can reference the payment created to collect it. This milestone intentionally does not call a provider recurring-billing API or schedule collections automatically.
+
 ## REPL de desenvolvimento
 
 ```bash

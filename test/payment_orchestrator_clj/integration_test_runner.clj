@@ -6,6 +6,7 @@
             [payment-orchestrator-clj.payment.idempotency-integration-test]
             [payment-orchestrator-clj.payment.provider-integration-test]
             [payment-orchestrator-clj.reconciliation-integration-test]
+            [payment-orchestrator-clj.subscription.datomic-repository-integration-test]
             [payment-orchestrator-clj.ledger-integration-test]
             [payment-orchestrator-clj.webhook-integration-test]))
 
@@ -16,6 +17,7 @@
    'payment-orchestrator-clj.payment.idempotency-integration-test
    'payment-orchestrator-clj.payment.provider-integration-test
    'payment-orchestrator-clj.reconciliation-integration-test
+   'payment-orchestrator-clj.subscription.datomic-repository-integration-test
    'payment-orchestrator-clj.ledger-integration-test
    'payment-orchestrator-clj.webhook-integration-test])
 
