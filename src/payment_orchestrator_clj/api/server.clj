@@ -16,6 +16,7 @@
             [payment-orchestrator-clj.ledger.datomic-repository :as ledger-repository]
             [payment-orchestrator-clj.ledger.repository :as ledger]
             [payment-orchestrator-clj.provider.fake :as fake]
+            [payment-orchestrator-clj.provider.asaas.adapter :as asaas]
             [payment-orchestrator-clj.provider.stripe.adapter :as stripe]
             [payment-orchestrator-clj.webhook.datomic-repository :as webhook-repository]
             [payment-orchestrator-clj.webhook.service :as webhook-service]
@@ -37,7 +38,8 @@
         routing-config (assoc (:routing gateway-config)
                               :default-provider default-provider)
         fake-config (:fake gateway-config)
-        stripe-config (:stripe gateway-config)]
+        stripe-config (:stripe gateway-config)
+        asaas-config (:asaas gateway-config)]
     {:routing routing-config
      :providers (cond-> []
                   (or (:enabled fake-config) (= :fake default-provider))
@@ -49,7 +51,12 @@
                   (conj {:provider :stripe
                          :gateway (stripe/new-gateway (assoc stripe-config :environment (System/getenv)))
                          :capabilities #{:payment/create :payment/fetch :payment/refund :payment/cancel :method/card :method/pix :method/boleto}
-                         :cost (:cost stripe-config 0)}))}))
+                         :cost (:cost stripe-config 0)})
+                  (or (:enabled asaas-config) (= :asaas default-provider))
+                  (conj {:provider :asaas
+                         :gateway (asaas/new-gateway (assoc asaas-config :environment (System/getenv)))
+                         :capabilities #{:payment/create :payment/fetch :payment/refund :payment/cancel :method/card :method/pix :method/boleto}
+                         :cost (:cost asaas-config 0)}))}))
 
 (defn application-dependencies [application-config]
   (let [database-config (:database application-config)

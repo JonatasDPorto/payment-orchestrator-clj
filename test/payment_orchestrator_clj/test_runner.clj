@@ -12,6 +12,9 @@
             [payment-orchestrator-clj.provider.stripe-adapter-test]
             [payment-orchestrator-clj.provider.stripe-errors-test]
             [payment-orchestrator-clj.provider.stripe-mapper-test]
+            [payment-orchestrator-clj.provider.asaas-adapter-test]
+            [payment-orchestrator-clj.provider.asaas-composition-test]
+            [payment-orchestrator-clj.provider.asaas-mapper-test]
             [payment-orchestrator-clj.performance-test]
             [payment-orchestrator-clj.security-test]
             [payment-orchestrator-clj.refund.domain-test]
@@ -36,6 +39,9 @@
    'payment-orchestrator-clj.provider.stripe-adapter-test
    'payment-orchestrator-clj.provider.stripe-errors-test
    'payment-orchestrator-clj.provider.stripe-mapper-test
+   'payment-orchestrator-clj.provider.asaas-adapter-test
+   'payment-orchestrator-clj.provider.asaas-composition-test
+   'payment-orchestrator-clj.provider.asaas-mapper-test
    'payment-orchestrator-clj.performance-test
    'payment-orchestrator-clj.security-test
    'payment-orchestrator-clj.refund.domain-test

@@ -23,4 +23,10 @@
   :test-stripe-pix-sandbox {:extra-paths ["test"]
                             :main-opts ["-m" "payment-orchestrator-clj.stripe-pix-sandbox-test-runner"]}
   :test-stripe-boleto-sandbox {:extra-paths ["test"]
-                               :main-opts ["-m" "payment-orchestrator-clj.stripe-boleto-sandbox-test-runner"]}}}
+                               :main-opts ["-m" "payment-orchestrator-clj.stripe-boleto-sandbox-test-runner"]}
+  :test-asaas-sandbox {:extra-paths ["test"]
+                       :main-opts ["-m" "payment-orchestrator-clj.asaas-sandbox-test-runner"]}
+  :audit-asaas-sandbox {:extra-paths ["test"]
+                        :main-opts ["-m" "payment-orchestrator-clj.asaas-sandbox-audit-runner"]}
+  :cleanup-asaas-sandbox {:extra-paths ["test"]
+                          :main-opts ["-m" "payment-orchestrator-clj.asaas-sandbox-cleanup-runner"]}}}
