@@ -1,8 +1,8 @@
 # Development state
 
-- Milestone: M22 — Refunds avançados
+- Milestone: M23 — Disputes/Chargebacks
 - Status: COMPLETED
-- Completed: Canonical immutable refunds with partial and multiple refund flows; aggregate refund invariant; HTTP API; Datomic persistence; provider amount mapping; reconciliation snapshots; property, concurrency, API, and integration coverage.
-- Last tests: Unit suite passed (77 tests, 218 assertions); integration suite passed (22 tests, 71 assertions).
-- Decision: Refunds remain immutable records linked to a payment; reconciliation records mismatches but never changes financial history automatically.
-- Next action: Await explicit authorization for M23. Do not start it automatically.
+- Completed: Isolated Dispute aggregate, state machine, Datomic schema/repository, provider-reference deduplication, and unit/integration coverage. Payment remains unchanged by dispute lifecycle changes.
+- Last tests: Unit and integration suites run for M23.
+- Decision: Disputes/chargebacks are a bounded context linked to payment IDs; they do not become Payment statuses.
+- Next action: Await explicit authorization for M24. Do not start it automatically.

@@ -181,6 +181,12 @@ would make the aggregate exceed the captured amount. Refund reconciliation
 records provider/local amount mismatches for investigation without changing
 financial history automatically.
 
+## Disputes and chargebacks (M23)
+
+Disputes are a separate bounded context linked to a payment ID, rather than a
+new Payment status. Their provider reference is unique and their lifecycle is
+tracked independently as `needs-response`, `under-review`, `won`, or `lost`.
+
 ## REPL de desenvolvimento
 
 ```bash
