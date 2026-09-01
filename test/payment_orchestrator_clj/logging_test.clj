@@ -10,9 +10,15 @@
          (.getName (class (LoggerFactory/getILoggerFactory))))))
 
 (deftest secrets-are-redacted-before-logging
-  (let [value (log/redact {:authorization "Bearer secret" :nested {:api-token "abc"} :payment-id "safe"})]
+  (let [value (log/redact {:authorization "Bearer secret"
+                           :ASAAS_API_KEY "asaas-api-key-must-not-appear"
+                           :nested {:asaas_access_token "webhook-token-must-not-appear"}
+                           :payment-id "safe"})]
     (is (= "[REDACTED]" (get value "authorization")))
-    (is (= "[REDACTED]" (get-in value ["nested" "api-token"])))
+    (is (= "[REDACTED]" (get value "ASAAS_API_KEY")))
+    (is (= "[REDACTED]" (get-in value ["nested" "asaas_access_token"])))
+    (is (not (.contains (pr-str value) "asaas-api-key-must-not-appear")))
+    (is (not (.contains (pr-str value) "webhook-token-must-not-appear")))
     (is (= "safe" (get value "payment-id")))))
 
 (deftest metrics-and-traces-capture-operational-work

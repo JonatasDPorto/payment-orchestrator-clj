@@ -1,5 +1,6 @@
 (ns payment-orchestrator-clj.webhook-test
   (:require [clojure.test :refer [deftest is]]
+            [payment-orchestrator-clj.api.routes :as routes]
             [payment-orchestrator-clj.api.webhook :as api]
             [payment-orchestrator-clj.payment.domain :as domain]
             [payment-orchestrator-clj.payment.repository :as payment-repository]
@@ -76,7 +77,9 @@
   "{\"id\":\"evt_webhook_1\",\"type\":\"payment_intent.succeeded\",\"data\":{\"object\":{\"id\":\"pi_webhook\"}}}")
 
 (def asaas-succeeded-event "{\"id\":\"evt_asaas_1\",\"event\":\"PAYMENT_RECEIVED\",\"payment\":{\"id\":\"pay_asaas_webhook\"}}")
-(defn- asaas-request [raw token] {:headers {"asaas-access-token" token} :body (ByteArrayInputStream. (.getBytes raw StandardCharsets/UTF_8))})
+(defn- asaas-request [raw token]
+  {:headers (cond-> {} token (assoc "asaas-access-token" token))
+   :body (ByteArrayInputStream. (.getBytes raw StandardCharsets/UTF_8))})
 
 (deftest invalid-signature-is-rejected-before-parsing-or-persisting
   (let [dependencies (dependencies (UUID/randomUUID))
@@ -95,6 +98,41 @@
     (is (= 1 @(:dispatched dependencies)))
     (service/process-pending! dependencies)
     (is (= :payment.status/paid (:payment/status (get @(:payments-atom dependencies) payment-id))))))
+
+(deftest asaas-missing-or-forged-token-is-rejected-before-any-business-change
+  (let [payment-id (UUID/randomUUID)
+        dependencies (assoc (dependencies payment-id) :asaas-webhook-token "asaas-test-token")
+        handler (api/asaas-handler dependencies)
+        before (get @(:payments-atom dependencies) payment-id)]
+    (is (= 400 (:status (handler (asaas-request asaas-succeeded-event nil)))))
+    ;; A well-formed payload is still forged if it lacks the endpoint secret.
+    (is (= 400 (:status (handler (asaas-request asaas-succeeded-event "attacker-token")))))
+    (is (empty? @(:events dependencies)))
+    (is (zero? @(:dispatched dependencies)))
+    (is (= before (get @(:payments-atom dependencies) payment-id)))))
+
+(deftest asaas-malformed-body-has-a-safe-response-and-is-not-persisted
+  (let [webhook-token "asaas-test-token"
+        dependencies (assoc (dependencies (UUID/randomUUID)) :asaas-webhook-token webhook-token)
+        response ((api/asaas-handler dependencies) (asaas-request "{" webhook-token))]
+    (is (= 400 (:status response)))
+    (is (= "{\"error\":\"invalid_event\"}" (:body response)))
+    (is (not (.contains (:body response) webhook-token)))
+    (is (empty? @(:events dependencies)))
+    (is (zero? @(:dispatched dependencies)))))
+
+(deftest asaas-webhook-remains-subject-to-the-shared-body-limit
+  (let [dependencies (assoc (dependencies (UUID/randomUUID))
+                            :asaas-webhook-token "asaas-test-token"
+                            :api-key "internal-api-key"
+                            :max-request-body-bytes 4)
+        response ((routes/handler dependencies)
+                  (assoc (asaas-request asaas-succeeded-event "asaas-test-token")
+                         :request-method :post :uri "/webhooks/asaas"))]
+    (is (= 413 (:status response)))
+    (is (= "{\"error\":{\"code\":\"payload_too_large\"}}" (:body response)))
+    (is (empty? @(:events dependencies)))
+    (is (zero? @(:dispatched dependencies)))))
 
 (deftest asaas-duplicate-and-unknown-events-are-safe-and-restartable
   (let [dependencies (assoc (dependencies (UUID/randomUUID)) :asaas-webhook-token "asaas-test-token")
