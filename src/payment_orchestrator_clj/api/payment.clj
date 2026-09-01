@@ -130,7 +130,9 @@
 (defn- request-context [request]
   (let [request-id (or (get-in request [:headers "x-request-id"])
                        (str (UUID/randomUUID)))]
-    {:request-id request-id :correlation-id request-id :actor :actor/api-client
+    {:request-id (or (:observability/request-id request) request-id)
+     :correlation-id (or (:observability/correlation-id request) request-id)
+     :observability/context (:observability/context request) :actor :actor/api-client
      :source :source/http :reason :reason/payment-create :event-type :event/payment-created}))
 
 (defn- idempotency-key [request]

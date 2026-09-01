@@ -14,9 +14,9 @@
       (if (and stripe-webhook-secret
                (stripe/valid-signature? raw-body signature stripe-webhook-secret clock))
         (try
-          (let [result (service/enqueue-stripe-event! dependencies raw-body)]
+          (let [result (service/enqueue-stripe-event! (assoc dependencies :observability-context (:observability/context request)) raw-body)]
             (when (= :accepted (:outcome result))
-              (dispatcher dependencies))
+               (dispatcher (assoc dependencies :observability-context (:observability-context result))))
             (response 200 "{\"received\":true}"))
           (catch Exception _ (response 400 "{\"error\":\"invalid_event\"}")))
         (response 400 "{\"error\":\"invalid_signature\"}")))))
@@ -26,8 +26,8 @@
     (let [raw-body (slurp (:body request)) token (get-in request [:headers "asaas-access-token"])]
       (if (and asaas-webhook-token (asaas/valid-token? token asaas-webhook-token))
         (try
-          (let [result (service/enqueue-asaas-event! dependencies raw-body)]
-            (when (= :accepted (:outcome result)) (dispatcher dependencies))
+          (let [result (service/enqueue-asaas-event! (assoc dependencies :observability-context (:observability/context request)) raw-body)]
+            (when (= :accepted (:outcome result)) (dispatcher (assoc dependencies :observability-context (:observability-context result))))
             (response 200 "{\"received\":true}"))
           ;; Invalid identity is rejected before the inbox; no account or token
           ;; detail is reflected to the caller.

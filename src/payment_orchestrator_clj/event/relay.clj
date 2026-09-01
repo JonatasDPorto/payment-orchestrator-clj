@@ -1,5 +1,6 @@
 (ns payment-orchestrator-clj.event.relay
   (:require [datomic.client.api :as d]
+            [payment-orchestrator-clj.observability.metrics :as metrics]
             [payment-orchestrator-clj.event.port :as producer])
   (:import [java.nio.charset StandardCharsets]
            [java.time Instant]
@@ -51,6 +52,8 @@
                 (producer/publish! producer event))
               (save-checkpoint! connection (:t transaction) (clock))
               (let [count (count (transaction-events connection transaction))]
-                (when metrics (swap! metrics update "event_relay_published_total" (fnil + 0) count))
+                (when metrics
+                  (swap! metrics update "event_relay_published_total" (fnil + 0) count)
+                  (metrics/observe! metrics "event_relay_lag" 0.0))
                 (+ published count)))
             0 transactions)))

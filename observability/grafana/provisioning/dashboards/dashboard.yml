@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: payment-orchestrator
+    folder: Payment Orchestrator
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

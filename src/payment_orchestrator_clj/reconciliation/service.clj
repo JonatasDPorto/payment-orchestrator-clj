@@ -4,6 +4,7 @@
             [payment-orchestrator-clj.payment.domain :as domain]
             [payment-orchestrator-clj.payment.repository :as payments]
             [payment-orchestrator-clj.provider.port :as provider]
+            [payment-orchestrator-clj.observability.metrics :as metrics]
             [payment-orchestrator-clj.reconciliation.repository :as operations]))
 
 (defn- provider->payment-status [result]
@@ -41,6 +42,10 @@
                                        :provider-operation/provider-reference (:provider-payment/reference remote)
                                        :provider-operation/completed-at now} tx-context)
         (operations/record-reconciliation! operations (assoc base :reconciliation/remote-status target :reconciliation/result result) tx-context)
+        (when-let [registry (:metrics dependencies)]
+          (metrics/inc! registry "reconciliation_total")
+          (when (= :reconciliation.result/corrected result)
+            (metrics/inc! registry "reconciliation_mismatch_total")))
         result)
       (catch clojure.lang.ExceptionInfo error
         (let [data (ex-data error)]

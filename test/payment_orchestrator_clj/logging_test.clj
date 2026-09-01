@@ -22,8 +22,10 @@
     (is (= "safe" (get value "payment-id")))))
 
 (deftest metrics-and-traces-capture-operational-work
-  (let [registry (metrics/registry) spans (atom [])]
+  (let [registry (metrics/registry) spans (atom []) tracer (trace/test-tracer spans)
+        context (trace/root-context "request-1" "correlation-1" nil)]
     (metrics/inc! registry "provider_timeout_total")
-    (binding [trace/*spans* spans] (trace/with-span "provider.create" #(identity :ok)))
+    (trace/with-span tracer context "payment.create" {} #(trace/with-span tracer % "provider.create" {:provider :stripe} (fn [_] :ok)))
     (is (= 1 (get @registry "provider_timeout_total")))
-    (is (= "provider.create" (:name (first @spans))))))
+    (is (= #{"payment.create" "provider.create"} (set (map :name @spans))))
+    (is (= "correlation-1" (:correlation-id (first @spans))))))

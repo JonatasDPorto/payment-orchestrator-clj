@@ -23,6 +23,7 @@
             [payment-orchestrator-clj.webhook.datomic-repository :as webhook-repository]
             [payment-orchestrator-clj.webhook.service :as webhook-service]
             [payment-orchestrator-clj.observability.metrics :as metrics]
+            [payment-orchestrator-clj.observability.trace :as trace]
             [payment-orchestrator-clj.security :as security])
   (:import [java.time Instant]
            [java.util UUID]))
@@ -110,6 +111,7 @@
      :ledger ledger-repository
      :routing (:routing catalog)
      :metrics (metrics/registry)
+     :tracer (trace/new-tracer)
      :clock #(Instant/now)
      :id-generator #(UUID/randomUUID)
      :stripe-webhook-secret (System/getenv "STRIPE_WEBHOOK_SECRET")

@@ -22,4 +22,4 @@
         (security/wrap-api-key (:api-key dependencies))
         (security/wrap-rate-limit (:rate-limiter dependencies) #(System/currentTimeMillis))
         (security/wrap-body-limit (or (:max-request-body-bytes dependencies) 1048576))
-        (observability/wrap-observability (:metrics dependencies)))))
+        (observability/wrap-observability (:metrics dependencies) (:tracer dependencies)))))

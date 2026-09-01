@@ -6,6 +6,7 @@
             [payment-orchestrator-clj.ledger.service :as ledger]
             [payment-orchestrator-clj.reconciliation.repository :as operations]
             [payment-orchestrator-clj.observability.metrics :as metrics]
+            [payment-orchestrator-clj.observability.trace :as trace]
             [payment-orchestrator-clj.consumer-webhook.service :as consumer-webhook]
             [payment-orchestrator-clj.merchant.provider-runtime :as merchant-runtime]
             [payment-orchestrator-clj.provider.port :as provider]
@@ -104,7 +105,7 @@
 
 (defn create-payment-idempotently!
   "Creates a payment once per consumer key and returns :created, :replayed or :conflict."
-  [{:keys [payments clock id-generator] :as dependencies} command idempotency-key transaction-context]
+  [{:keys [payments clock id-generator tracer] :as dependencies} command idempotency-key transaction-context]
   (let [now (clock)
         payment (assoc (domain/new-payment (assoc command :id (id-generator) :occurred-at now))
                        :payment/merchant-id (or (:merchant-id command) "default"))
@@ -114,23 +115,38 @@
                 :idempotency/request-hash (idempotency/request-hash command)
                 :idempotency/payment-id (:payment/id payment)
                 :idempotency/created-at now}
+        trace-context (trace/enrich-context (or (:observability/context transaction-context)
+                                                (trace/root-context (:request-id transaction-context) (:correlation-id transaction-context) nil))
+                                           {:payment-id (:payment/id payment) :merchant-id (:payment/merchant-id payment) :provider provider})
         local-result (repository/create-payment-idempotently! payments payment record transaction-context)]
     (if (not= :created (:outcome local-result))
       local-result
-      (let [operation-command (provider-command payment idempotency-key command)]
+      (trace/with-span (or tracer (trace/new-tracer)) trace-context "payment.create" {}
+       (fn [payment-context]
+        (let [operation-command (provider-command payment idempotency-key command)]
         (when-let [registry (:metrics dependencies)] (metrics/inc! registry "payment_create_total"))
         (try
           (let [_ (when-let [operation-repository (:operations dependencies)]
                   (operations/start-operation! operation-repository (operation payment operation-command now provider)
                                              (assoc transaction-context :event-type :event/provider-operation-started)))
-              raw-provider-result (provider/create-payment! gateway operation-command)
+              provider-started (System/nanoTime)
+              raw-provider-result (trace/with-span (or tracer (trace/new-tracer)) payment-context "provider.create"
+                                                    {:provider provider :operation :create}
+                                                    (fn [_] (provider/create-payment! gateway operation-command)))
+              _ (when-let [registry (:metrics dependencies)]
+                  (metrics/observe! registry "provider_request_duration_seconds"
+                                    (/ (- (System/nanoTime) provider-started) 1.0e9)))
               provider-result (cond-> (assoc raw-provider-result :provider-payment/created-at now)
                                 (:merchant-provider/account-id gateway-selection)
                                 (assoc :provider-account/id (:merchant-provider/account-id gateway-selection)))
               updated (apply-provider-result payment provider-result now)]
           (let [provider-context (assoc transaction-context :reason :reason/provider-result
                                         :event-type :event/payment-provider-result)
-                stored (repository/record-provider-result! payments updated provider-result provider-context)]
+                 stored (trace/with-span (or tracer (trace/new-tracer)) payment-context "datomic.transact" {}
+                          (fn [_] (repository/record-provider-result! payments updated provider-result provider-context)))]
+             (when (not= :payment.status/created (:payment/status stored))
+               (when-let [registry (:metrics dependencies)]
+                 (metrics/inc! registry "payment_status_transition_total")))
             (when-let [operation-repository (:operations dependencies)]
               (operations/complete-operation! operation-repository (:operation/id operation-command)
                                     {:provider-operation/status :provider-operation.status/succeeded
@@ -172,4 +188,4 @@
               (repository/save-payment! payments (to-processing payment now)
                                         (assoc transaction-context :reason :reason/provider-outcome-unknown
                                                                    :event-type :event/payment-reconciliation-required))))
-          (throw error)))))))
+          (throw error)))))))))
