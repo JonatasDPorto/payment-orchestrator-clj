@@ -21,12 +21,18 @@
     (when-not (= sandbox-url base-url) (throw (ex-info "Asaas Sandbox base URL is required" {:configured-base-url base-url})))
     (let [c (client/new-client {:api-key api-key :base-url base-url :timeout-ms 60000}) {:keys [customer customer-outcome]} (customer! c) payment-id (UUID/randomUUID)
           gateway (asaas/new-gateway {:environment {"ASAAS_API_KEY" api-key "ASAAS_BASE_URL" base-url} :base-url-env "ASAAS_BASE_URL" :due-date (str (.plusDays (LocalDate/now) 1))})
-          created (port/create-payment! gateway {:operation/id (UUID/randomUUID) :payment/id payment-id :provider-payment/external-reference (str "payment-orchestrator-clj:m8-sandbox:" payment-id) :amount 12990 :currency :BRL :method :payment.method/pix :customer {:reference (:id customer)}})
+          external-reference (str "payment-orchestrator-clj:m19-pix-sandbox:" payment-id)
+          created (port/create-payment! gateway {:operation/id (UUID/randomUUID) :payment/id payment-id :provider-payment/external-reference external-reference :amount 12990 :currency :BRL :method :payment.method/pix :customer {:reference (:id customer)}})
           reference (:provider-payment/reference created) fetched (port/fetch-payment gateway reference)
           raw (:body (client/request! c {:method :get :path (str "/payments/" reference)}))]
       (let [checks {:customer-id (string? (:id customer)) :provider-reference (= reference (:id raw))
-                    :external-reference (= (str "payment-orchestrator-clj:m8-sandbox:" payment-id) (:externalReference raw)) :amount (== 129.90 (:value raw))
-                    :provider (= :asaas (:provider created)) :canonical-status (= (:provider-payment/status created) (:provider-payment/status fetched))}]
+                    :external-reference (= external-reference (:externalReference raw)) :amount (== 129.90 (:value raw))
+                    :provider (= :asaas (:provider created)) :canonical-status (= (:provider-payment/status created) (:provider-payment/status fetched))
+                    :pix-action (= :pix/qr-code (get-in created [:provider-payment/action :action/type]))
+                    :pix-payload (string? (get-in created [:provider-payment/action :action/payload]))
+                    :pix-qr (string? (get-in created [:provider-payment/action :action/qr-code-url]))
+                    :pix-expiration (instance? java.time.Instant (get-in created [:provider-payment/action :action/expires-at]))
+                    :fetch-action (= (:provider-payment/action created) (:provider-payment/action fetched))}]
         (when-not (every? true? (vals checks))
           (throw (ex-info "Sandbox response failed canonical validation" {:provider :asaas :provider-reference reference :checks checks :raw-status (:status raw)}))))
       {:customer-outcome customer-outcome :customer-reference (:id customer) :payment-reference reference :canonical-status (:provider-payment/status fetched)})))
@@ -55,5 +61,5 @@
     (is (contains? #{:created :reused} (:customer-outcome result)))
     (is (string? (:customer-reference result)))
     (is (string? (:payment-reference result)))
-    (is (contains? #{:provider.status/processing :provider.status/succeeded} (:canonical-status result)))
+    (is (contains? #{:provider.status/requires-action :provider.status/succeeded} (:canonical-status result)))
     (println "ASAAS_SANDBOX_RESULT" result)))

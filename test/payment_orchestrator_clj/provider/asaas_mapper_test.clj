@@ -33,3 +33,14 @@
          (:provider-payment/status (mapper/payment->provider-result {:body {:id "pay_123" :status "RECEIVED"}}))))
   (is (= :provider.status/cancelled
          (:provider-payment/status (mapper/deleted-payment->provider-result {:body {:id "pay_123" :deleted true}})))))
+
+(deftest pix-qr-response-is-mapped-to-a-canonical-action
+  (let [result (mapper/payment-with-pix-action->provider-result
+                {:body {:id "pay_pix" :status "PENDING"}}
+                {:body {:encodedImage "cXItYnl0ZXM=" :payload "000201PIX" :expirationDate "2030-01-02T03:04:05Z"}})]
+    (is (= {:method :get :path "/payments/pay_pix/pixQrCode"} (mapper/pix-qr-code-request "pay_pix")))
+    (is (= :provider.status/requires-action (:provider-payment/status result)))
+    (is (= {:action/type :pix/qr-code :action/payload "000201PIX"
+            :action/qr-code-url "data:image/png;base64,cXItYnl0ZXM="
+            :action/expires-at (java.time.Instant/parse "2030-01-02T03:04:05Z")}
+           (:provider-payment/action result)))))

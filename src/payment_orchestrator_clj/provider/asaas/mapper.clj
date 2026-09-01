@@ -1,6 +1,8 @@
 (ns payment-orchestrator-clj.provider.asaas.mapper
   "Pure translations between the canonical gateway contract and Asaas payloads."
-  (:require [payment-orchestrator-clj.provider.port :as port]))
+  (:require [clojure.string :as string]
+            [payment-orchestrator-clj.provider.port :as port])
+  (:import [java.time Instant LocalDateTime ZoneId]))
 
 (defn operation-idempotency-key [operation-id operation]
   (str "payment-orchestrator-clj:" operation ":" operation-id))
@@ -49,6 +51,9 @@
 (defn fetch-request [reference]
   {:method :get :path (str "/payments/" reference)})
 
+(defn pix-qr-code-request [reference]
+  {:method :get :path (str "/payments/" reference "/pixQrCode")})
+
 (defn cancel-request [command]
   {:method :delete
    :path (str "/payments/" (:provider-payment/reference command))
@@ -80,6 +85,35 @@
      :provider-payment/status (canonical-status status)
      :provider-payment/raw-status status
      :provider-request-id request-id}))
+
+(defn- expiration->instant [expiration]
+  (when-not (string? expiration) (unexpected-response!))
+  (try
+    (Instant/parse expiration)
+    (catch java.time.format.DateTimeParseException _
+      (try
+        (.toInstant (.atZone (LocalDateTime/parse (string/replace expiration " " "T"))
+                             (ZoneId/of "America/Sao_Paulo")))
+        (catch java.time.format.DateTimeParseException _ (unexpected-response!))))))
+
+(defn- pix-action [{:keys [encodedImage payload expirationDate]}]
+  (when-not (and (string? encodedImage) (seq encodedImage)
+                 (string? payload) (seq payload))
+    (unexpected-response!))
+  {:action/type :pix/qr-code
+   :action/payload payload
+   ;; The canonical model accepts a QR representation. A data URI avoids
+   ;; exposing Asaas's field name or full provider response to consumers.
+   :action/qr-code-url (str "data:image/png;base64," encodedImage)
+   :action/expires-at (expiration->instant expirationDate)})
+
+(defn payment-with-pix-action->provider-result [payment-response pix-response]
+  (let [result (payment->provider-result payment-response)]
+    (assoc result
+           :provider-payment/status (if (= :provider.status/processing (:provider-payment/status result))
+                                      :provider.status/requires-action
+                                      (:provider-payment/status result))
+           :provider-payment/action (pix-action (:body pix-response)))))
 
 (defn deleted-payment->provider-result [{:keys [body request-id]}]
   (when-not (and (true? (:deleted body)) (string? (:id body)))

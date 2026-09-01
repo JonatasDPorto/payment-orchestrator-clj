@@ -8,6 +8,7 @@
   (cond
     (= [:post "/payments"] [method path]) {:status 200 :body {:id "pay_contract" :status "PENDING"}}
     (= [:get "/payments/pay_contract"] [method path]) {:status 200 :body {:id "pay_contract" :status "PENDING"}}
+    (= [:get "/payments/pay_pix/pixQrCode"] [method path]) {:status 200 :body {:encodedImage "cXItYnl0ZXM=" :payload "000201PIX" :expirationDate "2030-01-02 03:04:05"}}
     (= [:delete "/payments/pay_contract"] [method path]) {:status 200 :body {:id "pay_contract" :deleted true}}
     (= [:post "/payments/pay_contract/refund"] [method path]) {:status 200 :body {:id "pay_contract" :status "REFUNDED"}}))
 
@@ -26,3 +27,18 @@
     (is (= :asaas (:provider result)))
     (is (= :provider.status/processing (:provider-payment/status result)))
     (is (= "cus_123" (get-in (first @requests) [:body :customer])))))
+
+(deftest asaas-pix-capability-produces-the-canonical-action
+  (let [gateway (asaas/new-gateway {:due-date "2030-01-02"
+                                    :request-handler (fn [{:keys [path]}]
+                                                       (case path
+                                                         "/payments" {:status 200 :body {:id "pay_pix" :status "PENDING"}}
+                                                         "/payments/pay_pix/pixQrCode" {:status 200 :body {:encodedImage "cXItYnl0ZXM=" :payload "000201PIX" :expirationDate "2030-01-02 03:04:05"}}))})
+        result (port/create-payment! gateway {:operation/id (java.util.UUID/randomUUID) :payment/id (java.util.UUID/randomUUID)
+                                              :amount 100 :currency :BRL :method :payment.method/pix :customer {:reference "cus_123"}})]
+    (is (contains? (port/capabilities gateway) :method/pix))
+    (is (= :provider.status/requires-action (:provider-payment/status result)))
+    (is (= :pix/qr-code (get-in result [:provider-payment/action :action/type])))
+    (is (= "000201PIX" (get-in result [:provider-payment/action :action/payload])))
+    (is (= "data:image/png;base64,cXItYnl0ZXM=" (get-in result [:provider-payment/action :action/qr-code-url])))
+    (is (instance? java.time.Instant (get-in result [:provider-payment/action :action/expires-at])))))

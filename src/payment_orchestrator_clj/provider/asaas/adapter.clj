@@ -23,14 +23,21 @@
   (capabilities [_] #{:payment/create :payment/fetch :payment/refund :payment/cancel
                       :method/card :method/pix :method/boleto})
   (create-payment! [_ command]
-    (mapper/payment->provider-result
-     (client/request! client
-                      (mapper/create-request
-                       (update command :customer #(or % {:reference customer-id}))
-                       due-date))))
+    (let [payment-response (client/request! client
+                                            (mapper/create-request
+                                             (update command :customer #(or % {:reference customer-id}))
+                                             due-date))]
+      (if (= :payment.method/pix (:method command))
+        (mapper/payment-with-pix-action->provider-result
+         payment-response
+         (client/request! client (mapper/pix-qr-code-request (get-in payment-response [:body :id]))))
+        (mapper/payment->provider-result payment-response))))
   (fetch-payment [_ reference]
-    (mapper/payment->provider-result
-     (client/request! client (mapper/fetch-request reference))))
+    (let [payment-response (client/request! client (mapper/fetch-request reference))]
+      (if (= "PIX" (get-in payment-response [:body :billingType]))
+        (mapper/payment-with-pix-action->provider-result
+         payment-response (client/request! client (mapper/pix-qr-code-request reference)))
+        (mapper/payment->provider-result payment-response))))
   (cancel-payment! [_ command]
     (mapper/deleted-payment->provider-result
      (client/request! client (mapper/cancel-request command))))
