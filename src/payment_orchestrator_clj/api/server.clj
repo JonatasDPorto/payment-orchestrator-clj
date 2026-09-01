@@ -1,6 +1,7 @@
 (ns payment-orchestrator-clj.api.server
   "Runtime composition for the HTTP API."
   (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [ring.adapter.jetty :as jetty]
             [payment-orchestrator-clj.api.routes :as routes]
             [payment-orchestrator-clj.config :as config]
@@ -8,6 +9,7 @@
             [payment-orchestrator-clj.datomic.schema :as schema]
             [payment-orchestrator-clj.payment.datomic-repository :as datomic-repository]
             [payment-orchestrator-clj.refund.datomic-repository :as refund-repository]
+            [payment-orchestrator-clj.consumer-webhook.datomic-repository :as consumer-delivery-repository]
             [payment-orchestrator-clj.audit.datomic-repository :as audit-repository]
             [payment-orchestrator-clj.reconciliation.datomic-repository :as reconciliation-repository]
             [payment-orchestrator-clj.reconciliation.service :as reconciliation]
@@ -60,6 +62,8 @@
       (ledger/ensure-accounts! ledger-repository)
      {:payments (datomic-repository/new-repository connection)
      :refunds (refund-repository/new-repository connection)
+     :consumer-deliveries (consumer-delivery-repository/new-repository connection)
+     :consumer-webhook-endpoints (->> (or (System/getenv "PAYMENT_ORCHESTRATOR_WEBHOOK_ENDPOINTS") "") (string/split #",") (remove string/blank?) vec)
      :audit (audit-repository/new-repository connection)
      :operations (reconciliation-repository/new-repository connection)
      :provider-events (webhook-repository/new-repository connection)
