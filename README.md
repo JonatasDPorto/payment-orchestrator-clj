@@ -20,60 +20,60 @@ curl.exe -X POST http://localhost:8080/v1/payments -H "Authorization: Bearer <PA
 
 See [API.md](docs/API.md), [ARCHITECTURE.md](docs/ARCHITECTURE.md), [DEMO.md](docs/DEMO.md), [PERFORMANCE.md](docs/PERFORMANCE.md), and [SECURITY.md](SECURITY.md).
 
-Payment Orchestrator in Clojure is an open-source provider-agnostic payment orchestration platform built with Clojure and Datomic. A API HTTP, Datomic Local, and the M5 Fake Provider are available for local validation.
+Payment Orchestrator in Clojure is an open-source provider-agnostic payment orchestration platform built with Clojure and Datomic. The HTTP API, Datomic Local, and the M5 Fake Provider are available for local validation.
 
-## Pré-requisitos
+## Prerequisites
 
-- Java 21 ou mais recente
+- Java 21 or newer
 - [Clojure CLI](https://clojure.org/guides/install_clojure)
 
-## Executar localmente
+## Running locally
 
 ```bash
 clojure -M -m payment-orchestrator-clj.core
 ```
 
-O bootstrap registra o serviço e inicia Jetty na porta 8080.
+The bootstrap registers the service and starts Jetty on port 8080.
 
-## Testes
+## Tests
 
 ```bash
 clojure -M:test
 ```
 
-Sem instalar o Clojure CLI no host, execute a mesma suíte com Docker:
+Without installing the Clojure CLI on the host, run the same suite with Docker:
 
 ```powershell
 docker run --rm -v "${PWD}:/workspace" -w /workspace clojure:temurin-21-tools-deps clojure -M:test
 ```
 
-Os testes de integração do Datomic são separados:
+Datomic integration tests are separate:
 
 ```powershell
 docker run --rm -v "${PWD}:/workspace" -w /workspace clojure:temurin-21-tools-deps clojure -M:test-integration
 ```
 
-## Logging local
+## Local logging
 
-O projeto usa `slf4j-simple` com timestamp, thread, logger e nível `INFO`. O bootstrap registra apenas nome do serviço e ambiente; não registra payloads, identificadores de cliente, tokens ou secrets. A configuração está em `resources/simplelogger.properties`.
+The project uses `slf4j-simple` with timestamp, thread, logger, and `INFO` level. The bootstrap logs only the service name and environment; it does not log payloads, customer identifiers, tokens, or secrets. Configuration is in `resources/simplelogger.properties`.
 
-## API HTTP (M3)
+## HTTP API (M3)
 
-Inicie a API em `http://localhost:8080`:
+Start the API at `http://localhost:8080`:
 
 ```powershell
 docker run --rm -p 8080:8080 --env-file .env -v "${PWD}:/workspace" -w /workspace clojure:temurin-21-tools-deps clojure -M -m payment-orchestrator-clj.core
 ```
 
-Em outro terminal, defina `PAYMENT_ORCHESTRATOR_API_KEY` no `.env` e envie-a como Bearer token:
+In another terminal, set `PAYMENT_ORCHESTRATOR_API_KEY` in `.env` and send it as a Bearer token:
 
 ```powershell
 curl.exe -X POST http://localhost:8080/v1/payments -H "Authorization: Bearer <PAYMENT_ORCHESTRATOR_API_KEY>" -H "Content-Type: application/json" -H "Idempotency-Key: demo-payment-001" -d '{"customerId":"cust-123","amount":12990,"currency":"BRL","method":"card"}'
 ```
 
-## Idempotência da API (M4)
+## API Idempotency (M4)
 
-`POST /v1/payments` exige uma chave de idempotência. Repetir a mesma chave com o mesmo payload retorna o pagamento original; payload diferente retorna `409`.
+`POST /v1/payments` requires an idempotency key. Repeating the same key with the same payload returns the original payment; a different payload returns `409`.
 
 ```powershell
 curl.exe -X POST http://localhost:8080/v1/payments -H "Authorization: Bearer <PAYMENT_ORCHESTRATOR_API_KEY>" -H "Content-Type: application/json" -H "Idempotency-Key: demo-payment-001" -d '{"customerId":"cust-123","amount":12990,"currency":"BRL","method":"card"}'
@@ -81,9 +81,9 @@ curl.exe -X POST http://localhost:8080/v1/payments -H "Authorization: Bearer <PA
 
 ## Payment Gateway Port (M5)
 
-O gateway é definido pelo protocolo `PaymentGateway`; o ambiente padrão usa o Fake Provider determinístico (`:always-success`). O POST cria o pagamento local e retorna `processing`, persistindo a referência canônica do provider. Modos `:always-fail`, `:timeout` e `:requires-action` são cobertos pelos testes de contrato. Nenhuma instalação no host é necessária.
+The gateway is defined by the `PaymentGateway` protocol; the default environment uses the deterministic Fake Provider (`:always-success`). POST creates the local payment and returns `processing`, persisting the canonical provider reference. `:always-fail`, `:timeout`, and `:requires-action` modes are covered by contract tests. No host installation is required.
 
-Valide contrato, fluxo e persistência exclusivamente via Docker:
+Validate contract, flow, and persistence exclusively via Docker:
 
 ```powershell
 docker run --rm -v "${PWD}:/workspace" -w /workspace clojure:temurin-21-tools-deps clojure -M:test
@@ -92,21 +92,21 @@ docker run --rm -v "${PWD}:/workspace" -w /workspace clojure:temurin-21-tools-de
 
 ## Stripe Sandbox Adapter (M6)
 
-O Stripe é opcional e permanece isolado em `provider/stripe/`. Para executar o teste sandbox, use uma chave de teste e um payment method de teste somente no ambiente local; nunca grave esses valores em arquivos versionados.
+Stripe is optional and remains isolated in `provider/stripe/`. To run the sandbox test, use a test key and a test payment method only in the local environment; never commit these values to versioned files.
 
-Crie seu arquivo local a partir do exemplo:
+Create your local file from the example:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-Edite `.env` e informe sua `STRIPE_SECRET_KEY` de sandbox. O `.env` é ignorado pelo Git; `.env.example` não contém credenciais reais e é versionado.
+Edit `.env` and provide your sandbox `STRIPE_SECRET_KEY`. The `.env` file is ignored by Git; `.env.example` contains no real credentials and is versioned.
 
 ```powershell
 docker run --rm --env-file .env -v "${PWD}:/workspace" -w /workspace clojure:temurin-21-tools-deps clojure -M:test-stripe-sandbox
 ```
 
-Para iniciar a API com Stripe, defina as mesmas variáveis e selecione o provider por ambiente (o padrão permanece Fake Provider):
+To start the API with Stripe, set the same variables and select the provider by environment (the default remains the Fake Provider):
 
 ```powershell
 docker run --rm -p 8080:8080 --env-file .env -v "${PWD}:/workspace" -w /workspace clojure:temurin-21-tools-deps clojure -M -m payment-orchestrator-clj.core
@@ -114,17 +114,17 @@ docker run --rm -p 8080:8080 --env-file .env -v "${PWD}:/workspace" -w /workspac
 
 ## Stripe Webhook Inbox (M7)
 
-`POST /webhooks/stripe` valida o header `Stripe-Signature` sobre o corpo original antes de interpretar JSON. Eventos válidos entram em uma inbox Datomic idempotente e são processados fora da requisição. Apenas hash SHA-256 e campos operacionais são persistidos; o payload completo não é armazenado.
+`POST /webhooks/stripe` validates the `Stripe-Signature` header against the raw body before parsing JSON. Valid events enter an idempotent Datomic inbox and are processed asynchronously out-of-request. Only SHA-256 hashes and operational fields are persisted; full payloads are not stored.
 
-Para a demonstração local, inclua `STRIPE_WEBHOOK_SECRET` no `.env`, suba a API com o comando anterior e encaminhe eventos pelo Stripe CLI:
+For the local demonstration, include `STRIPE_WEBHOOK_SECRET` in `.env`, start the API using the previous command, and forward events via the Stripe CLI:
 
 ```powershell
 stripe listen --forward-to http://localhost:8080/webhooks/stripe
 ```
 
-Copie o segredo `whsec_...` exibido pelo CLI para `STRIPE_WEBHOOK_SECRET` e reinicie o container. Em seguida, crie um pagamento pela API M6: o Payment Intent criado pela aplicação será encaminhado pelo CLI e poderá ser associado ao pagamento local.
+Copy the `whsec_...` secret displayed by the CLI to `STRIPE_WEBHOOK_SECRET` and restart the container. Next, create a payment via the M6 API: the Payment Intent created by the application will be forwarded by the CLI and associated with the local payment.
 
-Para validar apenas a entrega do endpoint com um evento independente, use:
+To validate only endpoint delivery with an independent event, use:
 
 ```powershell
 stripe trigger payment_intent.succeeded
@@ -200,17 +200,17 @@ dead-letter records; endpoint/event pairs are deduplicated. Run delivery with:
 docker run --rm --env-file .env -v "${PWD}:/workspace" -w /workspace clojure:temurin-21-tools-deps clojure -M -m payment-orchestrator-clj.consumer-webhook.runner
 ```
 
-## REPL de desenvolvimento
+## Development REPL
 
 ```bash
 clojure -M:dev
 ```
 
-## Domínio de pagamentos (M1)
+## Payment domain (M1)
 
-O domínio é independente de banco, HTTP e providers. Valores monetários usam a menor unidade inteira: `12990` representa R$ 129,90.
+The domain is independent of database, HTTP, and providers. Monetary amounts use the smallest integer unit: `12990` represents 129.90 BRL.
 
-No REPL:
+In the REPL:
 
 ```clojure
 (require '[payment-orchestrator-clj.payment.domain :as payment])
@@ -223,11 +223,11 @@ No REPL:
 (payment/transition p :payment.status/processing)
 ```
 
-## Persistência Datomic (M2)
+## Datomic persistence (M2)
 
-O repositório Datomic recebe e devolve mapas do domínio; a Client API fica confinada à infraestrutura. Em testes, Datomic Local usa bancos em memória isolados. O schema inicial e sua primeira versão estão em `src/payment_orchestrator_clj/datomic/schema/`.
+The Datomic repository accepts and returns domain maps; the Client API is confined to infrastructure. In tests, Datomic Local uses isolated in-memory databases. The initial schema and its first version are located in `src/payment_orchestrator_clj/datomic/schema/`.
 
-Rode a suíte de integração separada:
+Run the separate integration suite:
 
 ```powershell
 docker run --rm -v "${PWD}:/workspace" -w /workspace clojure:temurin-21-tools-deps clojure -M:test-integration
