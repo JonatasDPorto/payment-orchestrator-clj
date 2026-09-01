@@ -6,6 +6,7 @@
             [payment-orchestrator-clj.ledger.service :as ledger]
             [payment-orchestrator-clj.reconciliation.repository :as operations]
             [payment-orchestrator-clj.observability.metrics :as metrics]
+            [payment-orchestrator-clj.consumer-webhook.service :as consumer-webhook]
             [payment-orchestrator-clj.provider.port :as provider]
             [payment-orchestrator-clj.provider.routing :as routing]))
 
@@ -121,6 +122,12 @@
                                      :provider-operation/provider (:provider provider-result)
                                      :provider-operation/provider-reference (:provider-payment/reference provider-result)
                                      :provider-operation/completed-at now} provider-context))
+            (when (and (:consumer-deliveries dependencies) (seq (:consumer-webhook-endpoints dependencies)))
+              (consumer-webhook/publish-payment-event!
+               {:repository (:consumer-deliveries dependencies) :endpoints (:consumer-webhook-endpoints dependencies)
+                :id-generator id-generator :clock clock}
+               {:event/id (str (:payment/id stored)) :event/type (str "payment." (name (:payment/status stored)))
+                :event/version 1 :event/aggregate-id (str (:payment/id stored)) :event/occurred-at (str now)}))
             (ledger/record-payment-settlement! {:ledger (:ledger dependencies) :clock clock :id-generator id-generator}
                                                stored provider-context)
             {:outcome :created :payment stored :provider-result provider-result}))

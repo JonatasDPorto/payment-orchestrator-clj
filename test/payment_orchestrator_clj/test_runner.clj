@@ -17,6 +17,9 @@
             [payment-orchestrator-clj.refund.domain-test]
             [payment-orchestrator-clj.refund.service-test]
             [payment-orchestrator-clj.dispute.domain-test]
+            [payment-orchestrator-clj.consumer-webhook.service-test]
+            [payment-orchestrator-clj.consumer-webhook.http-integration-test]
+            [payment-orchestrator-clj.consumer-webhook.e2e-integration-test]
             [payment-orchestrator-clj.subscription.domain-test]
             [payment-orchestrator-clj.webhook-test]))
 
@@ -38,6 +41,9 @@
    'payment-orchestrator-clj.refund.domain-test
    'payment-orchestrator-clj.refund.service-test
    'payment-orchestrator-clj.dispute.domain-test
+   'payment-orchestrator-clj.consumer-webhook.service-test
+   'payment-orchestrator-clj.consumer-webhook.http-integration-test
+   'payment-orchestrator-clj.consumer-webhook.e2e-integration-test
    'payment-orchestrator-clj.subscription.domain-test
    'payment-orchestrator-clj.webhook-test])
 

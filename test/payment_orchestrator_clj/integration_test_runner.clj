@@ -8,6 +8,7 @@
             [payment-orchestrator-clj.reconciliation-integration-test]
             [payment-orchestrator-clj.refund.datomic-repository-integration-test]
             [payment-orchestrator-clj.dispute.datomic-repository-integration-test]
+            [payment-orchestrator-clj.consumer-webhook.datomic-repository-integration-test]
             [payment-orchestrator-clj.subscription.datomic-repository-integration-test]
             [payment-orchestrator-clj.ledger-integration-test]
             [payment-orchestrator-clj.webhook-integration-test]))
@@ -21,6 +22,7 @@
    'payment-orchestrator-clj.reconciliation-integration-test
    'payment-orchestrator-clj.refund.datomic-repository-integration-test
    'payment-orchestrator-clj.dispute.datomic-repository-integration-test
+   'payment-orchestrator-clj.consumer-webhook.datomic-repository-integration-test
    'payment-orchestrator-clj.subscription.datomic-repository-integration-test
    'payment-orchestrator-clj.ledger-integration-test
    'payment-orchestrator-clj.webhook-integration-test])

@@ -187,6 +187,19 @@ Disputes are a separate bounded context linked to a payment ID, rather than a
 new Payment status. Their provider reference is unique and their lifecycle is
 tracked independently as `needs-response`, `under-review`, `won`, or `lost`.
 
+## Consumer webhooks (M24)
+
+Set `PAYMENT_ORCHESTRATOR_WEBHOOK_ENDPOINTS` to comma-separated HTTPS endpoints and
+`PAYMENT_ORCHESTRATOR_WEBHOOK_SECRET` to the shared HMAC-SHA256 secret. Payment
+events are persisted before delivery. POST requests carry JSON plus
+`X-Payment-Orchestrator-Event-Id` and `X-Payment-Orchestrator-Signature`.
+Non-2xx responses and transport failures retry up to five attempts, then become
+dead-letter records; endpoint/event pairs are deduplicated. Run delivery with:
+
+```powershell
+docker run --rm --env-file .env -v "${PWD}:/workspace" -w /workspace clojure:temurin-21-tools-deps clojure -M -m payment-orchestrator-clj.consumer-webhook.runner
+```
+
 ## REPL de desenvolvimento
 
 ```bash
