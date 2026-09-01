@@ -24,6 +24,8 @@
             [payment-orchestrator-clj.consumer-webhook.http-integration-test]
             [payment-orchestrator-clj.consumer-webhook.e2e-integration-test]
             [payment-orchestrator-clj.subscription.domain-test]
+            [payment-orchestrator-clj.merchant.provider-runtime-test]
+            [payment-orchestrator-clj.merchant.provider-candidates-test]
             [payment-orchestrator-clj.webhook-test]))
 
 (def test-namespaces
@@ -51,6 +53,8 @@
    'payment-orchestrator-clj.consumer-webhook.http-integration-test
    'payment-orchestrator-clj.consumer-webhook.e2e-integration-test
    'payment-orchestrator-clj.subscription.domain-test
+   'payment-orchestrator-clj.merchant.provider-runtime-test
+   'payment-orchestrator-clj.merchant.provider-candidates-test
    'payment-orchestrator-clj.webhook-test])
 
 (defn -main [& _]

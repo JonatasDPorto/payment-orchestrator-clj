@@ -46,18 +46,22 @@
 (defn- decode-body [request]
   (json/read-str (slurp (:body request)) :key-fn keyword))
 
-(defn- merchant-id [request]
-  (or (get-in request [:headers "x-merchant-id"]) "default"))
+(defn- merchant-context [request]
+  (or (:merchant-context request)
+      {:merchant-id (or (get-in request [:headers "x-merchant-id"]) "default")}))
 
-(defn- request->command [request body]
-  {:customer-id (:customerId request)
-   :merchant-id (merchant-id body)
-   :amount (:amount request)
-   :currency (keyword (:currency request))
-   :method (keyword "payment.method" (:method request))
-   :pix (when-let [pix (:pix request)]
+(defn- merchant-id [request]
+  (:merchant-id (merchant-context request)))
+
+(defn- request->command [body request]
+  {:customer-id (:customerId body)
+   :merchant-id (merchant-id request)
+   :amount (:amount body)
+   :currency (keyword (:currency body))
+   :method (keyword "payment.method" (:method body))
+   :pix (when-let [pix (:pix body)]
           {:tax-id (:taxId pix) :email (:email pix) :name (:name pix)})
-   :boleto (when-let [boleto (:boleto request)]
+   :boleto (when-let [boleto (:boleto body)]
              {:tax-id (:taxId boleto)
               :email (:email boleto)
               :name (:name boleto)

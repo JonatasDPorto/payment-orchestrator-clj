@@ -29,10 +29,12 @@
           (let [result (service/enqueue-asaas-event! dependencies raw-body)]
             (when (= :accepted (:outcome result)) (dispatcher dependencies))
             (response 200 "{\"received\":true}"))
-          ;; Repository and worker failures must remain visible. The boundary
-          ;; classifies malformed provider input as :webhook/invalid-event.
+          ;; Invalid identity is rejected before the inbox; no account or token
+          ;; detail is reflected to the caller.
           (catch clojure.lang.ExceptionInfo error
-            (if (= :webhook/invalid-event (:error/code (ex-data error)))
+            (if (contains? #{:webhook/invalid-event :webhook/unknown-provider-account
+                             :webhook/inactive-provider-account}
+                           (:error/code (ex-data error)))
               (response 400 "{\"error\":\"invalid_event\"}")
               (throw error))))
         (response 400 "{\"error\":\"invalid_token\"}")))))

@@ -50,6 +50,7 @@
     {:provider-event/provider :stripe
      :provider-event/external-id (:id event)
      :provider-event/type (:type event)
+     :provider-event/webhook-identity (:account event)
      :provider-event/provider-reference (get-in event [:data :object :id])}))
 
 (defn canonical-payment-status [event-type]

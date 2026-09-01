@@ -8,6 +8,8 @@
             [payment-orchestrator-clj.datomic.client :as datomic-client]
             [payment-orchestrator-clj.datomic.schema :as schema]
             [payment-orchestrator-clj.payment.datomic-repository :as datomic-repository]
+            [payment-orchestrator-clj.merchant.datomic-repository :as merchant-repository]
+            [payment-orchestrator-clj.merchant.provider-runtime :as merchant-runtime]
             [payment-orchestrator-clj.refund.datomic-repository :as refund-repository]
             [payment-orchestrator-clj.consumer-webhook.datomic-repository :as consumer-delivery-repository]
             [payment-orchestrator-clj.audit.datomic-repository :as audit-repository]
@@ -58,16 +60,47 @@
                          :capabilities #{:payment/create :payment/fetch :payment/refund :payment/cancel :method/card :method/pix :method/boleto}
                          :cost (:cost asaas-config 0)}))}))
 
+(defn- provider-catalog [gateway-config]
+  (let [default-provider (configured-provider gateway-config)
+        routing-config (assoc (:routing gateway-config) :default-provider default-provider)
+        fake-config (:fake gateway-config)
+        stripe-config (:stripe gateway-config)
+        asaas-config (:asaas gateway-config)]
+    {:routing routing-config
+     :providers [{:provider :fake :available? true
+                  :capabilities #{:payment/create :payment/fetch :payment/refund :payment/cancel :method/card :method/pix :method/boleto}
+                  :cost (:cost fake-config 0)}
+                 {:provider :stripe :available? true
+                  :capabilities #{:payment/create :payment/fetch :payment/refund :payment/cancel :method/card :method/pix :method/boleto}
+                  :cost (:cost stripe-config 0)}
+                 {:provider :asaas :available? true
+                  :capabilities #{:payment/create :payment/fetch :payment/refund :payment/cancel :method/card :method/pix :method/boleto}
+                  :cost (:cost asaas-config 0)}]}))
+
+(defn- merchant-gateway-factories []
+  {:stripe (fn [{:keys [credential runtime-config]}]
+             (stripe/new-gateway (assoc runtime-config :secret-key credential)))
+   :asaas (fn [{:keys [credential runtime-config]}]
+            (asaas/new-gateway (assoc runtime-config :api-key credential)))})
+
 (defn application-dependencies [application-config]
   (let [database-config (:database application-config)
         client (datomic-client/new-client (normalize-client-config database-config))
         connection (datomic-client/create-connection! client (:database-name database-config))
         gateway-config (:payments application-config)
-        catalog (gateway-catalog gateway-config)]
+        catalog (provider-catalog gateway-config)
+        environment (System/getenv)]
     (schema/install! connection)
     (let [ledger-repository (ledger-repository/new-repository connection)]
       (ledger/ensure-accounts! ledger-repository)
      {:payments (datomic-repository/new-repository connection)
+     :provider-accounts (merchant-repository/new-provider-account-repository connection)
+     :merchant-provider-runtime (merchant-runtime/new-runtime
+                                 {:provider-accounts (merchant-repository/new-provider-account-repository connection)
+                                  :provider-configurations (merchant-repository/new-provider-configuration-repository connection)
+                                  :secret-resolver (merchant-runtime/new-local-secret-resolver {:environment environment})
+                                  :gateway-factories (merchant-gateway-factories)})
+     :provider-catalog (:providers catalog)
      :refunds (refund-repository/new-repository connection)
      :consumer-deliveries (consumer-delivery-repository/new-repository connection)
      :consumer-webhook-endpoints (->> (or (System/getenv "PAYMENT_ORCHESTRATOR_WEBHOOK_ENDPOINTS") "") (string/split #",") (remove string/blank?) vec)
@@ -75,7 +108,6 @@
      :operations (reconciliation-repository/new-repository connection)
      :provider-events (webhook-repository/new-repository connection)
      :ledger ledger-repository
-     :providers (:providers catalog)
      :routing (:routing catalog)
      :metrics (metrics/registry)
      :clock #(Instant/now)

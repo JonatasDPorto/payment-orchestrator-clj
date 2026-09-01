@@ -3,7 +3,8 @@
 (defprotocol ProviderEventRepository
   (enqueue! [repository event transaction-context])
   (pending-events [repository])
-  (payment-by-provider-reference [repository provider reference])
+  (payment-by-provider-reference [repository provider reference]
+    [repository merchant-id provider account-id reference])
   (mark-processed! [repository event-id payment-id transaction-context])
   (mark-ignored! [repository event-id transaction-context])
   (record-processing-error! [repository event-id error-code transaction-context]))

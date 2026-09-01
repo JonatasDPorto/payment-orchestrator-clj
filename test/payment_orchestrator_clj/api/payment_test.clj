@@ -199,6 +199,22 @@
     (is (= 201 (:status created)))
     (is (= 404 (:status response)))))
 
+(deftest authenticated-merchant-context-overrides-an-untrusted-header
+  (let [handler (api)
+        created (handler (assoc (assoc-in (request :post "/v1/payments"
+                                                   "{\"customerId\":\"cust-123\",\"amount\":12990,\"currency\":\"BRL\",\"method\":\"card\"}")
+                                               [:headers "x-merchant-id"] "merchant-b")
+                                :merchant-context {:merchant-id "merchant-a"}))
+        payment-id (:id (response-body created))
+        owner-response (handler (assoc (assoc-in (request :get (str "/v1/payments/" payment-id) "")
+                                                  [:headers "x-merchant-id"] "merchant-b")
+                                       :merchant-context {:merchant-id "merchant-a"}))
+        non-owner-response (handler (assoc-in (request :get (str "/v1/payments/" payment-id) "")
+                                              [:headers "x-merchant-id"] "merchant-b"))]
+    (is (= 201 (:status created)))
+    (is (= 200 (:status owner-response)))
+    (is (= 404 (:status non-owner-response)))))
+
 (deftest get-missing-payment-returns-not-found
   (let [response ((api) (request :get "/v1/payments/fc1b6fa6-1ed5-4211-a9fd-fb4e1dfefa0d" ""))]
     (is (= 404 (:status response)))

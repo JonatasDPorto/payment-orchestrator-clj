@@ -5,6 +5,7 @@
             [payment-orchestrator-clj.payment.datomic-repository-integration-test]
             [payment-orchestrator-clj.payment.idempotency-integration-test]
             [payment-orchestrator-clj.payment.provider-integration-test]
+            [payment-orchestrator-clj.merchant.datomic-repository-integration-test]
             [payment-orchestrator-clj.reconciliation-integration-test]
             [payment-orchestrator-clj.refund.datomic-repository-integration-test]
             [payment-orchestrator-clj.dispute.datomic-repository-integration-test]
@@ -19,6 +20,7 @@
    'payment-orchestrator-clj.payment.datomic-repository-integration-test
    'payment-orchestrator-clj.payment.idempotency-integration-test
    'payment-orchestrator-clj.payment.provider-integration-test
+   'payment-orchestrator-clj.merchant.datomic-repository-integration-test
    'payment-orchestrator-clj.reconciliation-integration-test
    'payment-orchestrator-clj.refund.datomic-repository-integration-test
    'payment-orchestrator-clj.dispute.datomic-repository-integration-test

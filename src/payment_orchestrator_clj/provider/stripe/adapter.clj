@@ -29,16 +29,17 @@
 
 (defn new-gateway
   "Creates a Stripe gateway. Secrets are read only when no test client is injected."
-  [{:keys [secret-key-env payment-method-env timeout-ms environment request-handler]
+  [{:keys [secret-key secret-key-env payment-method-id payment-method-env timeout-ms environment request-handler]
     :or {secret-key-env "STRIPE_SECRET_KEY"
          payment-method-env "STRIPE_TEST_PAYMENT_METHOD"
          timeout-ms 10000
          environment {}}}]
   (let [injected? (some? request-handler)
-        secret-key (when-not injected? (required-env environment secret-key-env))
+        secret-key (when-not injected? (or secret-key (required-env environment secret-key-env)))
         payment-method-id (if injected?
                             "pm_test_stub"
-                            (or (get environment payment-method-env)
+                            (or payment-method-id
+                                (get environment payment-method-env)
                                 (System/getenv payment-method-env)))]
     (->StripeGateway (client/new-client {:secret-key secret-key
                                          :timeout-ms timeout-ms

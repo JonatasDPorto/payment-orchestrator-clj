@@ -4,6 +4,7 @@
             [payment-orchestrator-clj.api.webhook :as api]
             [payment-orchestrator-clj.payment.domain :as domain]
             [payment-orchestrator-clj.payment.repository :as payment-repository]
+            [payment-orchestrator-clj.merchant.repository :as merchant-repository]
             [payment-orchestrator-clj.webhook.repository :as event-repository]
             [payment-orchestrator-clj.webhook.service :as service])
   (:import [java.io ByteArrayInputStream]
@@ -24,6 +25,16 @@
   (record-provider-result! [_ payment _ _] (swap! payments assoc (:payment/id payment) payment) payment)
   (find-payment [_ payment-id] (get @payments payment-id)))
 
+(defrecord InMemoryAccounts [accounts]
+  merchant-repository/ProviderAccountRepository
+  (save-provider-account! [_ _ _] (throw (UnsupportedOperationException.)))
+  (find-provider-account [_ merchant-id account-id]
+    (get accounts [merchant-id account-id]))
+  (find-provider-account-by-webhook-identity [_ provider identity]
+    (some #(when (and (= provider (:provider-account/provider %))
+                      (= identity (:provider-account/webhook-identity %))) %)
+          (vals accounts))))
+
 (defrecord InMemoryEvents [events references payments]
   event-repository/ProviderEventRepository
   (enqueue! [_ event _]
@@ -33,6 +44,9 @@
           {:outcome :accepted :event event})))
   (pending-events [_] (->> @events vals (filter #(= :provider-event.status/pending (:provider-event/status %))) vec))
   (payment-by-provider-reference [_ _ reference]
+    (when-let [payment-id (get @references reference)]
+      (get @payments payment-id)))
+  (payment-by-provider-reference [_ _ _ _ reference]
     (when-let [payment-id (get @references reference)]
       (get @payments payment-id)))
   (mark-processed! [_ event-id payment-id _]
@@ -64,6 +78,16 @@
         events (atom {})
         dispatched (atom 0)]
     {:payments (->InMemoryPayments payments)
+     :provider-accounts (->InMemoryAccounts { ["merchant-a" "stripe-a"] {:provider-account/id "stripe-a"
+                                                                           :provider-account/provider :stripe
+                                                                           :provider-account/status :active
+                                                                           :provider-account/webhook-identity "stripe-account-a"
+                                                                           :provider-account/merchant {:merchant/id "merchant-a"}}
+                                               ["merchant-b" "asaas-b"] {:provider-account/id "asaas-b"
+                                                                           :provider-account/provider :asaas
+                                                                           :provider-account/status :active
+                                                                           :provider-account/webhook-identity "asaas-account-b"
+                                                                           :provider-account/merchant {:merchant/id "merchant-b"}}})
      :provider-events (->InMemoryEvents events (atom {"pi_webhook" payment-id}) payments)
      :stripe-webhook-secret webhook-secret
      :clock fixed-clock
@@ -74,9 +98,9 @@
      :dispatched dispatched}))
 
 (def succeeded-event
-  "{\"id\":\"evt_webhook_1\",\"type\":\"payment_intent.succeeded\",\"data\":{\"object\":{\"id\":\"pi_webhook\"}}}")
+  "{\"id\":\"evt_webhook_1\",\"account\":\"stripe-account-a\",\"type\":\"payment_intent.succeeded\",\"data\":{\"object\":{\"id\":\"pi_webhook\"}}}")
 
-(def asaas-succeeded-event "{\"id\":\"evt_asaas_1\",\"event\":\"PAYMENT_RECEIVED\",\"payment\":{\"id\":\"pay_asaas_webhook\"}}")
+(def asaas-succeeded-event "{\"id\":\"evt_asaas_1\",\"account\":{\"id\":\"asaas-account-b\"},\"event\":\"PAYMENT_RECEIVED\",\"payment\":{\"id\":\"pay_asaas_webhook\"}}")
 (defn- asaas-request [raw token]
   {:headers (cond-> {} token (assoc "asaas-access-token" token))
    :body (ByteArrayInputStream. (.getBytes raw StandardCharsets/UTF_8))})
@@ -137,7 +161,7 @@
 (deftest asaas-duplicate-and-unknown-events-are-safe-and-restartable
   (let [dependencies (assoc (dependencies (UUID/randomUUID)) :asaas-webhook-token "asaas-test-token")
         handler (api/asaas-handler dependencies)
-        unknown "{\"id\":\"evt_asaas_unknown\",\"event\":\"CUSTOMER_CREATED\",\"payment\":{\"id\":\"pay_none\"}}"]
+        unknown "{\"id\":\"evt_asaas_unknown\",\"account\":{\"id\":\"asaas-account-b\"},\"event\":\"CUSTOMER_CREATED\",\"payment\":{\"id\":\"pay_none\"}}"]
     (is (= 200 (:status (handler (asaas-request unknown "asaas-test-token")))))
     (is (= 200 (:status (handler (asaas-request unknown "asaas-test-token")))))
     (is (= 1 (count @(:events dependencies))))
@@ -190,7 +214,7 @@
         dependencies {:payments (->InMemoryPayments payments)
                       :provider-events (->InMemoryEvents events (atom {"pi_boleto_webhook" payment-id}) payments)
                       :clock fixed-clock :id-generator #(UUID/randomUUID)}
-        raw-body "{\"id\":\"evt_boleto_succeeded\",\"type\":\"payment_intent.succeeded\",\"data\":{\"object\":{\"id\":\"pi_boleto_webhook\"}}}"]
+        raw-body "{\"id\":\"evt_boleto_succeeded\",\"account\":\"stripe-account-a\",\"type\":\"payment_intent.succeeded\",\"data\":{\"object\":{\"id\":\"pi_boleto_webhook\"}}}"]
     (is (= :accepted (:outcome (service/enqueue-stripe-event! dependencies raw-body))))
     (is (= :payment.status/requires-action (:payment/status (get @payments payment-id))))
     (service/process-pending! dependencies)
@@ -199,7 +223,7 @@
 
 (deftest unknown-event-is-persisted-and-ignored-safely
   (let [dependencies (dependencies (UUID/randomUUID))
-        raw-body "{\"id\":\"evt_unknown\",\"type\":\"customer.created\",\"data\":{\"object\":{\"id\":\"cus_x\"}}}"
+        raw-body "{\"id\":\"evt_unknown\",\"account\":\"stripe-account-a\",\"type\":\"customer.created\",\"data\":{\"object\":{\"id\":\"cus_x\"}}}"
         response ((api/stripe-handler dependencies) (request raw-body (signature raw-body)))]
     (is (= 200 (:status response)))
     (service/process-pending! dependencies)

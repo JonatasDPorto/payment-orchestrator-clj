@@ -19,6 +19,7 @@
       {:provider-event/provider :asaas
        :provider-event/external-id (:id body)
        :provider-event/type (:event body)
+       :provider-event/webhook-identity (or (:accountId body) (get-in body [:account :id]) (:account body))
        :provider-event/provider-reference (get-in body [:payment :id])})
     ;; `data.json` reports malformed input through IOException subclasses. The
     ;; raw body is intentionally not included in the error data or logs.

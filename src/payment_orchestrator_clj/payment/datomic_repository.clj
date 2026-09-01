@@ -103,7 +103,10 @@
                             :provider-payment/reference (:provider-payment/reference provider-result)
                             :provider-payment/status (:provider-payment/status provider-result)
                             :provider-payment/raw-status (:provider-payment/raw-status provider-result)
-                            :provider-payment/created-at (Date/from (:provider-payment/created-at provider-result))}]
+                            :provider-payment/created-at (Date/from (:provider-payment/created-at provider-result))}
+            provider-payment (cond-> provider-payment
+                               (:provider-account/id provider-result)
+                               (assoc :provider-payment/provider-account [:provider-account/id (:provider-account/id provider-result)]))]
       (d/transact connection {:tx-data [(domain->tx payment)
                                         provider-payment
                                         (transaction-metadata context)]})

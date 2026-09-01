@@ -7,6 +7,7 @@
             [payment-orchestrator-clj.reconciliation.repository :as operations]
             [payment-orchestrator-clj.observability.metrics :as metrics]
             [payment-orchestrator-clj.consumer-webhook.service :as consumer-webhook]
+            [payment-orchestrator-clj.merchant.provider-runtime :as merchant-runtime]
             [payment-orchestrator-clj.provider.port :as provider]
             [payment-orchestrator-clj.provider.routing :as routing]))
 
@@ -73,14 +74,25 @@
 (defn- gateway-for
   "Uses routing when a provider catalog is supplied, while retaining the injected
   single gateway boundary used by existing tests and non-routed compositions."
-  [{:keys [gateway providers routing]} payment]
-  (if (seq providers)
+  [{:keys [gateway providers routing merchant-provider-runtime provider-catalog]} payment]
+  (if merchant-provider-runtime
+    (let [merchant-context {:merchant-id (:payment/merchant-id payment)}
+          candidates (merchant-runtime/provider-candidates merchant-provider-runtime merchant-context provider-catalog)
+          selected (routing/select-provider {:merchant-id (:payment/merchant-id payment)
+                                             :currency (:payment/currency payment)
+                                             :method (:payment/method payment)
+                                             :routing routing}
+                                            candidates)]
+      (assoc selected :gateway (merchant-runtime/create-gateway merchant-provider-runtime
+                                                                  merchant-context
+                                                                  (:provider selected))))
+    (if (seq providers)
     (routing/select-provider {:merchant-id (:payment/merchant-id payment)
                               :currency (:payment/currency payment)
                               :method (:payment/method payment)
                               :routing routing}
                              providers)
-    {:provider :provider/unknown :gateway gateway}))
+    {:provider :provider/unknown :gateway gateway})))
 
 (defn- routed-gateway-for [dependencies payment]
   (try
@@ -96,7 +108,8 @@
   (let [now (clock)
         payment (assoc (domain/new-payment (assoc command :id (id-generator) :occurred-at now))
                        :payment/merchant-id (or (:merchant-id command) "default"))
-        {:keys [provider gateway]} (routed-gateway-for dependencies payment)
+        gateway-selection (routed-gateway-for dependencies payment)
+        {:keys [provider gateway]} gateway-selection
         record {:idempotency/key idempotency-key
                 :idempotency/request-hash (idempotency/request-hash command)
                 :idempotency/payment-id (:payment/id payment)
@@ -111,7 +124,9 @@
                   (operations/start-operation! operation-repository (operation payment operation-command now provider)
                                              (assoc transaction-context :event-type :event/provider-operation-started)))
               raw-provider-result (provider/create-payment! gateway operation-command)
-              provider-result (assoc raw-provider-result :provider-payment/created-at now)
+              provider-result (cond-> (assoc raw-provider-result :provider-payment/created-at now)
+                                (:merchant-provider/account-id gateway-selection)
+                                (assoc :provider-account/id (:merchant-provider/account-id gateway-selection)))
               updated (apply-provider-result payment provider-result now)]
           (let [provider-context (assoc transaction-context :reason :reason/provider-result
                                         :event-type :event/payment-provider-result)

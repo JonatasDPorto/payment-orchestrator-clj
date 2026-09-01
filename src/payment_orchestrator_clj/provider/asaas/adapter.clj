@@ -48,11 +48,11 @@
 (defn new-gateway
   "Creates an Asaas gateway. Secrets are read only when no test client is injected.
   `due-date` is ISO-8601 because Asaas requires one for every charge."
-  [{:keys [api-key-env timeout-ms environment request-handler due-date customer-id]
+  [{:keys [api-key api-key-env timeout-ms environment request-handler due-date customer-id]
     :or {api-key-env "ASAAS_API_KEY" timeout-ms 10000 environment {}}
     :as options}]
   (let [injected? (some? request-handler)
-        api-key (when-not injected? (required-env environment api-key-env))
+        api-key (when-not injected? (or api-key (required-env environment api-key-env)))
         base-url (configured-base-url options)]
     (->AsaasGateway (client/new-client {:api-key api-key
                                          :base-url base-url
