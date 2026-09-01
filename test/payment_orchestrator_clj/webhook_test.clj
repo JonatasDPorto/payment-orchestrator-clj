@@ -75,11 +75,56 @@
 (def succeeded-event
   "{\"id\":\"evt_webhook_1\",\"type\":\"payment_intent.succeeded\",\"data\":{\"object\":{\"id\":\"pi_webhook\"}}}")
 
+(def asaas-succeeded-event "{\"id\":\"evt_asaas_1\",\"event\":\"PAYMENT_RECEIVED\",\"payment\":{\"id\":\"pay_asaas_webhook\"}}")
+(defn- asaas-request [raw token] {:headers {"asaas-access-token" token} :body (ByteArrayInputStream. (.getBytes raw StandardCharsets/UTF_8))})
+
 (deftest invalid-signature-is-rejected-before-parsing-or-persisting
   (let [dependencies (dependencies (UUID/randomUUID))
         response ((api/stripe-handler dependencies) (request "not-json" "t=1700000000,v1=bad"))]
     (is (= 400 (:status response)))
     (is (empty? @(:events dependencies)))))
+
+(deftest asaas-token-is-validated-and-event-is-persisted-before-async-dispatch
+  (let [payment-id (UUID/randomUUID) dependencies (assoc (dependencies payment-id) :asaas-webhook-token "asaas-test-token")
+        _ (swap! (:references (:provider-events dependencies)) assoc "pay_asaas_webhook" payment-id)
+        handler (api/asaas-handler dependencies)]
+    (is (= 400 (:status (handler (asaas-request asaas-succeeded-event "wrong")))))
+    (is (empty? @(:events dependencies)))
+    (is (= 200 (:status (handler (asaas-request asaas-succeeded-event "asaas-test-token")))))
+    (is (= 1 (count @(:events dependencies))))
+    (is (= 1 @(:dispatched dependencies)))
+    (service/process-pending! dependencies)
+    (is (= :payment.status/paid (:payment/status (get @(:payments-atom dependencies) payment-id))))))
+
+(deftest asaas-duplicate-and-unknown-events-are-safe-and-restartable
+  (let [dependencies (assoc (dependencies (UUID/randomUUID)) :asaas-webhook-token "asaas-test-token")
+        handler (api/asaas-handler dependencies)
+        unknown "{\"id\":\"evt_asaas_unknown\",\"event\":\"CUSTOMER_CREATED\",\"payment\":{\"id\":\"pay_none\"}}"]
+    (is (= 200 (:status (handler (asaas-request unknown "asaas-test-token")))))
+    (is (= 200 (:status (handler (asaas-request unknown "asaas-test-token")))))
+    (is (= 1 (count @(:events dependencies))))
+    (service/process-pending! dependencies)
+    (is (= :provider-event.status/ignored (:provider-event/status (first (vals @(:events dependencies))))))))
+
+(deftest asaas-pending-event-is-reprocessed-after-restart
+  (let [payment-id (UUID/randomUUID)
+        dependencies (assoc (dependencies payment-id) :asaas-webhook-token "asaas-test-token")
+        events (:events dependencies)]
+    ;; The payment has not reached a state from which it can settle yet; the
+    ;; inbox must retain the event for the next worker run rather than discard it.
+    (swap! (:payments-atom dependencies) assoc payment-id
+           (domain/new-payment {:id payment-id :customer-id "customer-123" :amount 100
+                                :currency :BRL :method :payment.method/pix :occurred-at (fixed-clock)}))
+    (swap! (:references (:provider-events dependencies)) assoc "pay_asaas_webhook" payment-id)
+    (is (= 200 (:status ((api/asaas-handler dependencies)
+                         (asaas-request asaas-succeeded-event "asaas-test-token")))))
+    (service/process-pending! dependencies)
+    (is (= :provider-event.status/pending (:provider-event/status (first (vals @events)))))
+    (is (= "processing_failed" (:provider-event/error (first (vals @events)))))
+    (swap! (:payments-atom dependencies) update payment-id domain/transition :payment.status/processing (fixed-clock))
+    ;; A fresh invocation models the worker after a process restart.
+    (service/process-pending! dependencies)
+    (is (= :payment.status/paid (:payment/status (get @(:payments-atom dependencies) payment-id))))))
 
 (deftest duplicate-webhook-is-acknowledged-once-and-causes-one-payment-transition
   (let [payment-id (UUID/randomUUID)

@@ -5,6 +5,8 @@
             [payment-orchestrator-clj.api.payment :as payment]
             [payment-orchestrator-clj.audit.repository :as audit]
             [payment-orchestrator-clj.provider.fake :as fake]
+            [payment-orchestrator-clj.provider.asaas.adapter :as asaas]
+            [payment-orchestrator-clj.provider.stripe.adapter :as stripe]
             [payment-orchestrator-clj.security :as security]
             [payment-orchestrator-clj.payment.repository :as repository]
             [payment-orchestrator-clj.refund.repository :as refund-repository])
@@ -116,6 +118,19 @@
     (is (= 201 (:status response)))
     (is (= {:id "fc1b6fa6-1ed5-4211-a9fd-fb4e1dfefa0d" :status "processing" :amount 12990 :currency "BRL"}
            (response-body response)))))
+
+(deftest canonical-consumer-request-has-the-same-response-with-stripe-or-asaas
+  (let [body "{\"customerId\":\"cus-123\",\"amount\":12990,\"currency\":\"BRL\",\"method\":\"card\"}"
+        stripe-gateway (stripe/new-gateway {:request-handler (fn [_]
+                                                                {:status 200 :request-id "req_replacement"
+                                                                 :body {:id "pi_replacement" :status "processing"}})})
+        stripe-response ((api {:gateway stripe-gateway}) (request :post "/v1/payments" body "replacement-key"))
+        asaas-gateway (asaas/new-gateway {:due-date "2030-01-02"
+                                          :request-handler (fn [_] {:status 200 :body {:id "pay_replacement" :status "PENDING"}})})
+        asaas-response ((api {:gateway asaas-gateway}) (request :post "/v1/payments" body "replacement-key"))]
+    (is (= 201 (:status stripe-response)))
+    (is (= (:status stripe-response) (:status asaas-response)))
+    (is (= (response-body stripe-response) (response-body asaas-response)))))
 
 (deftest partial-refund-has-a-canonical-response-and-prevents-over-refund
   (let [payment-id (UUID/fromString "fc1b6fa6-1ed5-4211-a9fd-fb4e1dfefa0d")

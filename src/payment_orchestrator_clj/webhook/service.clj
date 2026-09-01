@@ -3,6 +3,7 @@
             [payment-orchestrator-clj.observability.metrics :as metrics]
             [payment-orchestrator-clj.ledger.service :as ledger]
             [payment-orchestrator-clj.payment.repository :as payments]
+            [payment-orchestrator-clj.provider.asaas.webhook :as asaas]
             [payment-orchestrator-clj.provider.stripe.webhook :as stripe]
             [payment-orchestrator-clj.webhook.repository :as events])
   (:import [java.time Instant]
@@ -30,6 +31,18 @@
           (swap! metrics update "webhook_duplicate_total" (fnil inc 0))))
       result)))
 
+(defn enqueue-asaas-event! [{:keys [provider-events clock id-generator metrics]} raw-body]
+  (let [{:provider-event/keys [external-id] :as event} (asaas/parse-event raw-body)]
+    (when-not (and (string? external-id) (seq external-id))
+      (throw (ex-info "Asaas event is missing an identifier" {:error/code :webhook/invalid-event})))
+    (let [result (events/enqueue! provider-events (assoc event :provider-event/id (id-generator)
+                  :provider-event/dedupe-key (str "asaas:" external-id)
+                  :provider-event/payload-sha256 (asaas/payload-hash raw-body) :provider-event/received-at (clock))
+                                {:source :source/webhook})]
+      (when metrics (swap! metrics update "webhook_received_total" (fnil inc 0))
+            (when (= :duplicate (:outcome result)) (swap! metrics update "webhook_duplicate_total" (fnil inc 0))))
+      result)))
+
 (defn- transition-for-provider-event [payment target-status occurred-at]
   (cond
     (= target-status (:payment/status payment)) payment
@@ -43,7 +56,10 @@
 (defn- apply-event! [{:keys [provider-events payments clock id-generator ledger] :as dependencies} event]
   (let [event-id (:provider-event/id event)
         context (transaction-context event-id)
-        target-status (stripe/canonical-payment-status (:provider-event/type event))]
+        target-status (case (:provider-event/provider event)
+                        :stripe (stripe/canonical-payment-status (:provider-event/type event))
+                        :asaas (asaas/canonical-payment-status (:provider-event/type event))
+                        nil)]
     (cond
       (nil? target-status) (events/mark-ignored! provider-events event-id context)
       :else (if-let [payment (events/payment-by-provider-reference provider-events

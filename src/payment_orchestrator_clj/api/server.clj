@@ -81,6 +81,7 @@
      :clock #(Instant/now)
      :id-generator #(UUID/randomUUID)
      :stripe-webhook-secret (System/getenv "STRIPE_WEBHOOK_SECRET")
+     :asaas-webhook-token (System/getenv "ASAAS_WEBHOOK_TOKEN")
      :api-key (security/required-api-key (System/getenv "PAYMENT_ORCHESTRATOR_API_KEY"))
      :rate-limiter (security/new-rate-limiter {:limit 60 :window-ms 60000})
      :max-request-body-bytes 1048576

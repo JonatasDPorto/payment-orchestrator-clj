@@ -15,7 +15,8 @@
      ["/v1/payments/:id/history" {:get {:handler (payment/payment-history-handler dependencies)}}]
      ["/v1/payments/:id/ledger" {:get {:handler (payment/payment-ledger-handler dependencies)}}]
      ["/v1/payments/:id" {:get {:handler (payment/find-payment-handler dependencies)}}]
-     ["/webhooks/stripe" {:post {:handler (webhook/stripe-handler dependencies)}}]])
+     ["/webhooks/stripe" {:post {:handler (webhook/stripe-handler dependencies)}}]
+     ["/webhooks/asaas" {:post {:handler (webhook/asaas-handler dependencies)}}]])
    (ring/create-default-handler))]
     (-> router
         (security/wrap-api-key (:api-key dependencies))
