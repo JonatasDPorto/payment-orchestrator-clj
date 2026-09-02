@@ -1,39 +1,78 @@
 # Payment Orchestrator in Clojure
 
-A provider-agnostic payment orchestration API built with **Clojure** and **Datomic**. It gives consumers one canonical payment contract while isolating Stripe and Asaas implementation details.
+A provider-agnostic payment orchestration API in Clojure and Datomic: consumers use one canonical contract while payment state, idempotency, and financial rules remain independent of Stripe or Asaas.
 
-Payment Orchestrator provides a safe, idempotent, and unified API boundary across multiple payment providers (such as Stripe and local gateways). It handles complex payment lifecycles, dynamic provider routing, Pix/Boleto voucher generation, durable webhook inboxing, double-entry ledger accounting, and immutable audit logs.
+## Why this project exists
 
----
+- **Multiple providers?** The HTTP API and payment model are canonical; Fake, Stripe, and Asaas sit behind the `PaymentGateway` port.
+- **Provider timeout?** A timeout is not assumed to be a failed payment. Ambiguous outcomes are reconciled before a dangerous retry.
+- **Duplicate charge?** `Idempotency-Key` is persisted with the payment command, so equivalent retries replay the original result and conflicts are rejected.
+- **Financial integrity?** Settled payments create immutable, balanced double-entry ledger postings.
+- **Real integrations?** The project includes deterministic Fake-provider tests plus Stripe and Asaas sandbox adapters and documented sandbox validation.
 
-## Key Features
+```mermaid
+flowchart LR
+    Client[Client] --> API[Canonical HTTP API]
+    API --> Boundary[Authentication + Idempotency]
+    Boundary --> App[Payment application service]
+    App --> Merchant[Merchant configuration + routing]
+    Merchant --> Port[PaymentGateway port]
+    Port --> Fake[Fake adapter]
+    Port --> Stripe[Stripe adapter]
+    Port --> Asaas[Asaas adapter]
 
-- **Provider Agnostic & Isolation**: Unified protocol layer isolating raw provider payloads from canonical core logic (Fake, Stripe Sandbox, and Asaas Sandbox).
-- **Strict Idempotency**: Built-in request deduplication (`Idempotency-Key`) preventing double-charging on network retries.
-- **Canonical Payment Capabilities**: Seamless support for Cards, **Pix** (Instant Copy & Paste / QR Code payloads), and **Boleto** Vouchers.
-- **Dynamic Provider Routing**: Pure routing policy supporting merchant-level, currency-level, method-level, availability-based, and lowest-cost provider selection.
-- **Durable Webhook Engine**: HMAC & SHA-256 signature validation, idempotent event processing, and dead-letter queue (DLQ) retry logic for consumer webhooks.
-- **Financial Integrity & Audit**: Double-entry ledger accounting, granular partial refund tracking, dispute lifecycle management, and Datomic temporal time-travel auditing.
-- **Operational recovery**: Unknown provider outcomes are reconciled rather than treated as failed payments; a Datomic-log relay publishes at-least-once events to Kafka.
-- **Multi-tenant operation**: Merchant-scoped provider accounts/configuration, consumer webhooks, structured logs, Prometheus metrics, Grafana dashboard, and trace context.
+    App --> Datomic[(Datomic)]
+    App --> Ledger[Immutable double-entry ledger]
+    Datomic --> Relay[Durable event relay]
+    Relay --> Kafka[Kafka]
+    App -. unknown outcome .-> Reconciliation[Reconciliation worker]
 
----
+    Stripe --> Webhooks[Webhook inbox]
+    Asaas --> Webhooks
+    Webhooks --> Event[Canonical provider event]
+    Event --> App
+```
+
+The diagram shows reconciliation only for unknown outcomes, and Kafka only after durable Datomic state through the relay. Provider adapters depend on the canonical application boundary—not the other way around.
+
+## Core guarantees
+
+- Provider-agnostic payment domain and public API
+- Idempotent payment creation and duplicate-safe webhook inbox
+- Explicit unknown-outcome handling and reconciliation
+- Immutable double-entry ledger with balance invariants
+- Durable, at-least-once event publication from the Datomic log
+
+## Providers and payment methods
+
+- Fake provider for deterministic tests and failure injection
+- Stripe Sandbox and Asaas Sandbox adapters behind the same port
+- Card, Pix canonical QR/copy-and-paste actions, and Boleto vouchers
+- Merchant-scoped provider accounts and routing without provider fields in consumer requests
+
+## Evidence
+
+Latest validated local suites:
+
+| Suite | Tests | Assertions | Failures | Errors |
+| --- | ---: | ---: | ---: | ---: |
+| Unit | 109 | 344 | 0 | 0 |
+| Integration | 31 | 92 | 0 | 0 |
 
 ## Quick Start
 
-### 1. Run with Docker
+### 1. Configure and start
 
 ```powershell
-# Copy example environment configuration
 Copy-Item .env.example .env
-
-# Build and launch API, Kafka, Prometheus, and Grafana
 docker compose up --build
 ```
 
-### 2. Create a Payment
+The local stack starts the API, Kafka, Prometheus, and Grafana. Keep credentials only in `.env`; it is ignored by Git.
 
-In a separate terminal, replace `<PAYMENT_ORCHESTRATOR_API_KEY>` with the value defined in your `.env` file:
+### 2. Create a payment
+
+Replace the placeholder with your local API key from `.env`:
 
 ```powershell
 curl.exe -X POST http://localhost:8080/v1/payments `
@@ -44,30 +83,26 @@ curl.exe -X POST http://localhost:8080/v1/payments `
   -d '{"customerId":"cust-demo","amount":12990,"currency":"BRL","method":"card"}'
 ```
 
-### 3. Run Tests
-
-To execute the test suite without installing local Clojure tooling:
+### 3. Test and demo
 
 ```powershell
 docker run --rm -v "${PWD}:/workspace" -w /workspace clojure:temurin-21-tools-deps clojure -M:test
+docker run --rm -v "${PWD}:/workspace" -w /workspace clojure:temurin-21-tools-deps clojure -M:test-integration
 ```
 
----
+Follow the [demo script](docs/DEMO.md) for provider replacement, idempotency, duplicate webhooks, Datomic time travel, reconciliation, ledger, and Kafka relay.
 
-## Project Documentation & References
+## Deep dives
 
-- 📖 **[Technical Milestones & Detailed Reference](docs/MILESTONES.md)** – Comprehensive step-by-step setup, milestone history (M1–M24), and REPL commands.
-- 🏗️ **[Architecture Overview](docs/ARCHITECTURE.md)** – Core domain boundaries, persistence layer design, and component isolation.
-- 🔌 **[API Documentation](docs/API.md)** – Complete HTTP endpoint spec, request/response payloads for Card, Pix, Boleto, and Refunds.
-- 🏢 **[Multi-Tenancy & Routing Policy](docs/MULTI-TENANCY.md)** – Configuration contracts for merchant isolation and smart provider routing.
-- ⚡ **[Performance Profile](docs/PERFORMANCE.md)** – Benchmarks, latency metrics, and memory footprints.
-- 🔒 **[Security Policy](SECURITY.md)** – Secret handling, tokenization, payload sanitization, and security guarantees.
-- 📜 **[Release Notes](docs/RELEASE-NOTES-v1.0.0.md)** – v1.0.0 Release Candidate details.
-- 🎬 **[Reproducible Demo](docs/DEMO.md)** – Provider replacement, idempotency, webhook, temporal audit, reconciliation, ledger, and Kafka walkthrough.
-- 📊 **[Observability](docs/OBSERVABILITY.md)** – Prometheus, Grafana, correlation IDs, and provider spans.
-
----
+- [Architecture](docs/ARCHITECTURE.md)
+- [API contract](docs/API.md)
+- [Multi-tenancy and routing](docs/MULTI-TENANCY.md)
+- [Observability](docs/OBSERVABILITY.md)
+- [Demo](docs/DEMO.md)
+- [Architecture decisions](docs/adr)
+- [Security policy](SECURITY.md)
+- [Release notes](docs/RELEASE-NOTES-v1.0.0.md)
 
 ## License
 
-Distributed under the MIT License. See [LICENSE](LICENSE) for details.
+Distributed under the MIT License. See [LICENSE](LICENSE).
