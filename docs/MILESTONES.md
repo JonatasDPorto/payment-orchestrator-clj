@@ -4,7 +4,7 @@
 
 Provider-agnostic payment orchestration API built with Clojure and Datomic. It demonstrates safe payment boundaries: idempotency, provider isolation, durable webhook processing, temporal audit, double-entry accounting, reconciliation, Kafka relay, observability, and security hardening.
 
-> Status: v1.0.0 release candidate. Stripe sandbox is supported; the Asaas milestone was intentionally skipped.
+> Status: v1.0.0 release candidate. Stripe and Asaas sandbox adapters are supported.
 
 ## Quick start with Docker
 
